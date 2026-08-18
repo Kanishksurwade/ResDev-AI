@@ -1,0 +1,295 @@
+{
+  "candidate": {
+    "personal_info": {
+      "name": "Kanishk Surwade",
+      "location": "Pune, Maharashtra, India",
+      "phone": "+91-9834008224",
+      "email": "kanishksurwade70@gmail.com",
+      "linkedin": "linkedin.com/in/kd4723",
+      "github": "github.com/Kanishksurwade"
+    },
+    "professional_identity": {
+      "current_profile": "AI & LLM Analyst",
+      "profile": "AI & LLM Analyst with production experience in multimodal AI evaluation, LLM output quality analysis, prompt engineering, hallucination detection, grounding assessment, and RLHF-aligned annotation on confidential enterprise datasets. Skilled in side-by-side model evaluation, multi-turn conversation testing, SOP-driven quality benchmarking, and cross-functional collaboration. Experienced with Google Cloud Platform, Power BI, and data operations in high-volume remote AI workflows."
+    }
+  },
+  "capabilities": {
+    "skills": {
+      "ai_llm": [
+        "LLM Evaluation",
+        "Prompt Engineering",
+        "Prompt Analysis",
+        "Hallucination Detection",
+        "Grounding Assessment",
+        "Side-by-Side Evaluation",
+        "Multi-turn Conversation Testing",
+        "RLHF Annotation",
+        "Multimodal AI Annotation (Text, Audio, Video, Image)",
+        "AI Output Review",
+        "Fine-Tuning Support"
+      ],
+      "tools_platforms": [
+        "Google Cloud Platform (GCP)",
+        "Power BI",
+        "MySQL Workbench",
+        "Excel",
+        "Python",
+        "SQL",
+        "Git",
+        "GitHub",
+        "CVAT",
+        "JAX",
+        "Flax"
+      ],
+      "core": [
+        "Data Cleaning",
+        "Quality Benchmarking",
+        "SOP Adherence",
+        "Process Improvement",
+        "Analytical Thinking",
+        "Attention to Detail",
+        "Independent Remote Work",
+        "Cross-Team Coordination",
+        "Confidential Data Handling"
+      ]
+    },
+    "certifications": [
+      {
+        "name": "Career Essentials in Generative AI",
+        "issuer": "Microsoft & LinkedIn Learning"
+      }
+    ]
+  },
+  "experience": [
+    {
+      "company": "Innodata Inc.",
+      "role": "AI & LLM Analyst",
+      "location": "Noida, India (Remote)",
+      "start_date": "Dec 2025",
+      "end_date": "Jul 2026",
+      "responsibilities_and_achievements": [
+        {
+          "text": "Conducted LLM evaluation including hallucination detection, grounding verification, side-by-side model comparison, and multi-turn conversation quality assessment on confidential production datasets.",
+          "skills_used": [
+            "LLM Evaluation",
+            "Hallucination Detection",
+            "Grounding Assessment",
+            "Side-by-Side Evaluation",
+            "Multi-turn Conversation Testing"
+          ],
+          "tailoring_angles": [
+            "LLM evaluation",
+            "AI quality assessment",
+            "model comparison",
+            "production AI workflows"
+          ]
+        },
+        {
+          "text": "Performed prompt analysis and prompt engineering to assess instruction-following, response coherence, and output format compliance across generative AI systems.",
+          "skills_used": [
+            "Prompt Analysis",
+            "Prompt Engineering",
+            "AI Output Review"
+          ],
+          "tailoring_angles": [
+            "prompt engineering",
+            "instruction following",
+            "generative AI quality",
+            "output evaluation"
+          ]
+        },
+        {
+          "text": "Executed multimodal AI annotation and quality assurance (text, audio, video, image) following strict SOPs to maintain inter-annotator accuracy and consistency standards.",
+          "skills_used": [
+            "Multimodal AI Annotation (Text, Audio, Video, Image)",
+            "Quality Benchmarking",
+            "SOP Adherence"
+          ],
+          "tailoring_angles": [
+            "multimodal AI",
+            "quality assurance",
+            "annotation",
+            "SOP-driven evaluation"
+          ]
+        },
+        {
+          "text": "Supported AI fine-tuning workflows through data cleaning, quality validation, and structured feedback aligned with RLHF best practices.",
+          "skills_used": [
+            "Fine-Tuning Support",
+            "Data Cleaning",
+            "RLHF Annotation"
+          ],
+          "tailoring_angles": [
+            "AI fine-tuning",
+            "data quality",
+            "RLHF",
+            "structured feedback"
+          ]
+        },
+        {
+          "text": "Built Power BI dashboards on GCP to monitor operational throughput, flag quality deviations, and drive data-driven process improvements.",
+          "skills_used": [
+            "Power BI",
+            "Google Cloud Platform (GCP)",
+            "Process Improvement"
+          ],
+          "tailoring_angles": [
+            "Power BI",
+            "GCP",
+            "data visualization",
+            "operational analytics",
+            "quality monitoring"
+          ]
+        },
+        {
+          "text": "Escalated edge cases and SOP ambiguities during calibration sessions, coordinating with cross-functional leads to maintain downstream data integrity.",
+          "skills_used": [
+            "SOP Adherence",
+            "Cross-Team Coordination",
+            "Confidential Data Handling"
+          ],
+          "tailoring_angles": [
+            "cross-functional collaboration",
+            "data integrity",
+            "quality calibration",
+            "edge-case handling"
+          ]
+        }
+      ]
+    },
+    {
+      "company": "Deloitte",
+      "role": "Data Analytics Intern",
+      "location": "Virtual Internship",
+      "start_date": "Sep 2025",
+      "end_date": "Sep 2025",
+      "responsibilities_and_achievements": [
+        {
+          "text": "Analysed manufacturing and operational datasets to identify performance gaps; developed KPI dashboards and calculated metrics in Excel to improve reporting and decision-making.",
+          "skills_used": [
+            "Data Analysis",
+            "Excel",
+            "KPI Dashboards"
+          ],
+          "tailoring_angles": [
+            "data analysis",
+            "manufacturing analytics",
+            "KPI reporting",
+            "Excel",
+            "operational analysis"
+          ]
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Google Tunix — Structured Reasoning Fine-Tuning with GRPO on Gemma 3",
+      "start_date": "Dec 2025",
+      "end_date": "Jan 2026",
+      "description": "Structured reasoning fine-tuning project using GRPO and Gemma 3.",
+      "technologies": [
+        "Gemma 3 (1B)",
+        "GRPO",
+        "LoRA",
+        "JAX",
+        "Flax",
+        "Google Cloud",
+        "TPU"
+      ],
+      "responsibilities_and_achievements": [
+        {
+          "text": "Fine-tuned Gemma 3 (1B) using GRPO and LoRA parameter-efficient fine-tuning to improve structured reasoning accuracy, designed reward functions and prompt templates to enforce output consistency.",
+          "skills_used": [
+            "GRPO",
+            "LoRA",
+            "Fine-Tuning",
+            "Reward Functions",
+            "Prompt Templates"
+          ],
+          "tailoring_angles": [
+            "LLM fine-tuning",
+            "structured reasoning",
+            "parameter-efficient fine-tuning",
+            "prompt design"
+          ]
+        },
+        {
+          "text": "Built and executed a TPU-based training and evaluation pipeline using JAX and Flax on Google Cloud.",
+          "skills_used": [
+            "JAX",
+            "Flax",
+            "Google Cloud",
+            "Model Evaluation"
+          ],
+          "tailoring_angles": [
+            "ML pipeline",
+            "model training",
+            "model evaluation",
+            "cloud AI infrastructure"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Northwind Sales Analysis & Dashboard",
+      "start_date": "Oct 2025",
+      "end_date": "Oct 2025",
+      "description": "Sales data analysis and business intelligence dashboard project.",
+      "technologies": [
+        "SQL",
+        "Excel",
+        "Power BI",
+        "DAX",
+        "ETL"
+      ],
+      "responsibilities_and_achievements": [
+        {
+          "text": "Cleaned and analysed 5,000+ sales records using SQL and Excel; built interactive Power BI dashboards with DAX-driven KPIs and ETL automation to improve reporting efficiency.",
+          "skills_used": [
+            "SQL",
+            "Excel",
+            "Power BI",
+            "DAX",
+            "ETL",
+            "Data Cleaning"
+          ],
+          "tailoring_angles": [
+            "data analysis",
+            "business intelligence",
+            "SQL",
+            "Power BI",
+            "DAX",
+            "ETL"
+          ]
+        }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "JSPM Rajarshi Shahu College of Engineering",
+      "degree": "B.Tech in Automation and Robotics",
+      "location": "Pune, India",
+      "start_year": 2021,
+      "end_year": 2025,
+      "cgpa": 7.75
+    }
+  ],
+  "achievements": [
+    "Published AI and data engineering projects on GitHub: github.com/Kanishksurwade"
+  ],
+  "generation_rules": {
+    "source_of_truth": true,
+    "allow_rephrasing": true,
+    "allow_reordering": true,
+    "allow_selective_inclusion": true,
+    "allow_jd_keyword_alignment": true,
+    "allow_combining_supported_evidence": true,
+    "allow_inference_from_existing_evidence": true,
+    "allow_fabrication": false,
+    "fabrication_policy": "Never invent employers, roles, skills, certifications, projects, achievements, metrics, technologies, or experience that are not supported by the master resume evidence.",
+    "ats_goal": "Maximize ATS compatibility and job-description alignment while preserving factual accuracy.",
+    "missing_keyword_policy": "Identify unsupported JD keywords as gaps instead of fabricating them."
+  }
+}
