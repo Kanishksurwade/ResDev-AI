@@ -219,12 +219,47 @@ def parse_json_response(raw_text: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # Secondary fallback: attempt to repair truncated JSON if closing brackets are missing
+    # 3. Robust progressive repair for truncated JSON
     if cleaned.startswith("{"):
-        for suffix in ["}", "]}", "]}}", "\"\n}", "\"\n]}", "\"\n]}}"]:
+        for i in range(len(cleaned), 0, -1):
+            sub = cleaned[:i].strip()
+            sub = re.sub(r",\s*$", "", sub)
+
+            # Fix unclosed string quote
+            quotes = len(re.findall(r'(?<!\\)"', sub))
+            if quotes % 2 != 0:
+                sub += '"'
+
+            # Balance braces and brackets
+            stack = []
+            in_string = False
+            escape = False
+            for char in sub:
+                if char == '"' and not escape:
+                    in_string = not in_string
+                elif not in_string:
+                    if char in '{[':
+                        stack.append(char)
+                    elif char in '}]':
+                        if stack:
+                            if (char == '}' and stack[-1] == '{') or (char == ']' and stack[-1] == '['):
+                                stack.pop()
+                if char == '\\' and not escape:
+                    escape = True
+                else:
+                    escape = False
+
+            closing = ""
+            for open_bracket in reversed(stack):
+                if open_bracket == '{':
+                    closing += "}"
+                elif open_bracket == '[':
+                    closing += "]"
+
             try:
-                parsed = json.loads(cleaned + suffix)
-                if isinstance(parsed, dict):
+                candidate = sub + closing
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict) and len(parsed) >= 2:
                     return parsed
             except json.JSONDecodeError:
                 continue
