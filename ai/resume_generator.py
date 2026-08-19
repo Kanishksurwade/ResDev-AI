@@ -389,19 +389,21 @@ def generate_tailored_resume(
     structured_jd: dict[str, Any] | str | Path,
     matching_analysis: dict[str, Any] | str | Path | None = None,
     revision_feedback: str | None = None,
+    improvement_actions: list[dict[str, Any]] | None = None,
     model: str = DEFAULT_MODEL,
     ollama_url: str = DEFAULT_OLLAMA_URL,
     prompt_path: str | Path | None = None,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
     """
-    Generate a tailored structured resume JSON aligned with the target JD and matching analysis.
+    Generate a tailored structured resume JSON aligned with the target JD, matching analysis, and improvement actions.
 
     Parameters:
         master_resume: Master resume dict or path to JSON file.
         structured_jd: Structured JD dict or path to JSON file / JSON string.
         matching_analysis: Optional matching analysis dict or JSON string.
         revision_feedback: Optional feedback from previous evaluation loop for revisions.
+        improvement_actions: Optional structured list of evaluator improvement action dictionaries.
         model: Ollama model name (default: "qwen3.5:4b").
         ollama_url: Ollama API endpoint.
         prompt_path: Optional custom prompt template path.
@@ -451,9 +453,29 @@ def generate_tailored_resume(
     else:
         matching_analysis_str = str(matching_analysis)
 
-    # 4. Format Revision Feedback Section
+    # 4. Format Revision Feedback & Improvement Actions Section
+    feedback_blocks = []
+    if improvement_actions:
+        action_lines = ["Structured Improvement Actions from Evaluator (Apply each action where factually supported by candidate evidence):"]
+        for idx, act in enumerate(improvement_actions, 1):
+            if isinstance(act, dict):
+                target = str(act.get("target", "general")).upper()
+                change = str(act.get("change", ""))
+                reason = str(act.get("reason", ""))
+                action_lines.append(f"{idx}. [{target}] Action: {change} (Rationale: {reason})")
+            elif isinstance(act, str) and act.strip():
+                action_lines.append(f"{idx}. {act.strip()}")
+        feedback_blocks.append("\n".join(action_lines))
+
     if revision_feedback and revision_feedback.strip():
-        feedback_section = f"Revision Feedback & Required Corrections:\n\"\"\"{revision_feedback.strip()}\"\"\"\nPlease address all feedback points directly in the generated resume."
+        feedback_blocks.append(f"Additional Evaluator Feedback:\n{revision_feedback.strip()}")
+
+    if feedback_blocks:
+        feedback_section = (
+            "Revision Instructions & Improvement Actions:\n\"\"\"\n"
+            + "\n\n".join(feedback_blocks)
+            + "\n\"\"\"\nCRITICAL: Apply each of the improvement actions above directly to the relevant resume sections, but preserve strict factual truth (never invent unsupported metrics, experiences, or tools)."
+        )
     else:
         feedback_section = ""
 
@@ -472,10 +494,13 @@ def generate_tailored_resume(
         timeout=timeout,
     )
 
-    # 7. Parse response safely
-    parsed_json = parse_json_response(raw_response)
+    # 7. Parse response safely with graceful fallback
+    try:
+        parsed_json = parse_json_response(raw_response)
+    except Exception:
+        parsed_json = {}
 
-    # 8. Validate and normalize structure against schema
+    # 8. Validate and normalize structure against schema (fills in defaults from master resume)
     tailored_resume = validate_and_normalize_resume_structure(
         extracted_data=parsed_json,
         master_resume_data=master_resume_dict,

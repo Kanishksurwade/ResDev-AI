@@ -47,10 +47,9 @@ Evaluation Dimensions & Scoring Rubric (0 to 100 per dimension):
 
 Rules & Guidelines:
 - Base your evaluation strictly on the provided Generated Resume and Job Description.
-- Do NOT invent or assume details not present in the inputs.
-- Clearly identify matched and missing keywords.
-- List specific, evidence-grounded strengths and weaknesses.
-- Provide concrete, actionable improvement instructions that a resume generator could use to revise the resume if needed.
+- CRITICAL FACTUAL BOUNDARIES: Only recommend changes that rephrase, prioritize, or emphasize factual candidate evidence already present in the resume. NEVER recommend adding fabricated metrics, unmentioned tools/platforms, fake employment history, or assumed native language proficiency.
+- Identify matched and missing keywords clearly.
+- Provide structured `improvement_actions` specifying the exact target section (`summary`, `skills`, `experience`, `projects`, etc.), the concrete change, and the rationale.
 - Return ONLY a single valid JSON object adhering strictly to the schema below without markdown backticks or conversational text.
 
 Expected JSON Structure:
@@ -71,7 +70,14 @@ Expected JSON Structure:
   "missing_keywords": ["Keywords from JD that are absent or poorly represented"],
   "strengths": ["Key strength or strong alignment point"],
   "weaknesses": ["Key weakness or gap in alignment"],
-  "improvement_instructions": ["Specific actionable instruction for revising the resume"],
+  "improvement_actions": [
+    {
+      "target": "summary",
+      "change": "Specific phrasing or keyword emphasis to adjust in summary",
+      "reason": "Why this improves alignment with target JD"
+    }
+  ],
+  "improvement_instructions": ["Brief summary of actionable improvements"],
   "explanation": "Comprehensive summary paragraph explaining the evaluation score and overall assessment."
 }"""
 
@@ -151,7 +157,7 @@ def parse_json_response(raw_text: str) -> dict[str, Any]:
         cleaned = re.sub(r"\s*```$", "", cleaned)
         cleaned = cleaned.strip()
 
-    # Direct JSON parse attempt
+    # 1. Direct JSON parse attempt
     try:
         parsed = json.loads(cleaned)
         if isinstance(parsed, dict):
@@ -159,7 +165,7 @@ def parse_json_response(raw_text: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         pass
 
-    # Fallback regex search for the outermost JSON object
+    # 2. Fallback regex search for the outermost JSON object
     match = re.search(r"(\{.*\})", cleaned, re.DOTALL)
     if match:
         try:
@@ -268,6 +274,35 @@ def validate_and_normalize_evaluation_structure(
             normalized[list_field] = [val.strip()]
         else:
             normalized[list_field] = []
+
+    # Structured improvement_actions
+    raw_actions = extracted_data.get("improvement_actions")
+    normalized_actions: list[dict[str, str]] = []
+    if isinstance(raw_actions, list):
+        for act in raw_actions:
+            if isinstance(act, dict):
+                target = str(act.get("target", "general")).strip().lower()
+                change = str(act.get("change", "")).strip()
+                reason = str(act.get("reason", "")).strip()
+                if change:
+                    normalized_actions.append({
+                        "target": target,
+                        "change": change,
+                        "reason": reason,
+                    })
+            elif isinstance(act, str) and act.strip():
+                normalized_actions.append({
+                    "target": "general",
+                    "change": act.strip(),
+                    "reason": "Improves job description alignment",
+                })
+    normalized["improvement_actions"] = normalized_actions
+
+    # Ensure improvement_instructions exists (populate from actions if empty)
+    if not normalized["improvement_instructions"] and normalized_actions:
+        normalized["improvement_instructions"] = [
+            f"[{act['target'].upper()}] {act['change']}" for act in normalized_actions
+        ]
 
     # Explanation
     explanation = extracted_data.get("explanation")

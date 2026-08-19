@@ -21,10 +21,9 @@ Evaluation Dimensions & Scoring Rubric (0 to 100 per dimension):
 
 Rules & Guidelines:
 - Base your evaluation strictly on the provided Generated Resume and Job Description.
-- Do NOT invent or assume details not present in the inputs.
-- Clearly identify matched and missing keywords.
-- List specific, evidence-grounded strengths and weaknesses.
-- Provide concrete, actionable improvement instructions that a resume generator could use to revise the resume if needed.
+- CRITICAL FACTUAL BOUNDARIES: Only recommend changes that rephrase, prioritize, or emphasize factual candidate evidence already present in the resume. NEVER recommend adding fabricated metrics, unmentioned tools/platforms, fake employment history, or assumed native language proficiency.
+- Identify matched and missing keywords clearly.
+- Provide structured `improvement_actions` specifying the exact target section (`summary`, `skills`, `experience`, `projects`, etc.), the concrete change, and the rationale.
 - Return ONLY a single valid JSON object adhering strictly to the schema below without markdown backticks or conversational text.
 
 Expected JSON Structure:
@@ -45,6 +44,13 @@ Expected JSON Structure:
   "missing_keywords": ["Keywords from JD that are absent or poorly represented"],
   "strengths": ["Key strength or strong alignment point"],
   "weaknesses": ["Key weakness or gap in alignment"],
-  "improvement_instructions": ["Specific actionable instruction for revising the resume"],
+  "improvement_actions": [
+    {
+      "target": "summary",
+      "change": "Specific phrasing or keyword emphasis to adjust in summary",
+      "reason": "Why this improves alignment with target JD"
+    }
+  ],
+  "improvement_instructions": ["Brief summary of actionable improvements"],
   "explanation": "Comprehensive summary paragraph explaining the evaluation score and overall assessment."
 }
