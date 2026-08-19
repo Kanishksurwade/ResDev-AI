@@ -1,0 +1,39 @@
+You are an expert ATS (Applicant Tracking System) job description analyzer.
+Analyze the following job description and extract key information into a clean, structured JSON object.
+
+Job Description:
+"""{job_description}"""
+
+Extraction Guidelines:
+- job_title: The official role or job title (e.g., "Data Analyst", "Senior Software Engineer").
+- seniority: Seniority level (e.g., "Entry-level", "Junior", "Mid-level", "Senior", "Lead", "Principal", "Manager", or "" if not mentioned).
+- required_skills: Mandatory hard technical skills, programming languages, platforms, frameworks, and tools explicitly required.
+- preferred_skills: Nice-to-have, bonus, or preferred technical skills, tools, and experience.
+- responsibilities: Core duties, key tasks, deliverables, and operational responsibilities.
+- experience_requirements: Required years of experience or specific domain background requirements.
+- education_requirements: Required or preferred academic degrees, majors, and educational qualifications.
+- certifications: Required or preferred professional certifications and licenses.
+- soft_skills: Interpersonal, communication, leadership, and organizational competencies.
+- keywords: High-priority ATS matching keywords, technical terms, acronyms, and domain terminology for resume alignment.
+- raw_job_description: The exact raw job description provided.
+
+Rules:
+1. Do NOT fabricate or hallucinate information that is not mentioned in the job description.
+2. If any field or category is not mentioned in the job description, return an empty string "" or empty list [].
+3. Return ONLY a single valid JSON object adhering strictly to the schema below.
+4. Do not include markdown codeblocks, explanations, notes, or conversational text outside the JSON.
+
+Expected JSON Structure:
+{
+  "job_title": "",
+  "seniority": "",
+  "required_skills": [],
+  "preferred_skills": [],
+  "responsibilities": [],
+  "experience_requirements": [],
+  "education_requirements": [],
+  "certifications": [],
+  "soft_skills": [],
+  "keywords": [],
+  "raw_job_description": ""
+}
