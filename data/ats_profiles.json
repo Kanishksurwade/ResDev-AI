@@ -1,0 +1,315 @@
+{
+  "_metadata": {
+    "description": "ATS platform behavior simulation profiles based on publicly available documentation and recruiter community knowledge. These are behavioral approximations and DO NOT represent access to proprietary ATS algorithms. No guaranteed real ATS scores are implied.",
+    "version": "1.0.0",
+    "last_updated": "2026-08-19"
+  },
+  "profiles": {
+    "workday": {
+      "platform_name": "Workday",
+      "description": "Enterprise cloud HCM platform. Strict keyword matching, strong section parsing, rejects non-standard formatting.",
+      "keyword_matching": {
+        "mode": "exact_and_synonym",
+        "case_sensitive": false,
+        "requires_exact_job_title_match": true,
+        "penalizes_keyword_stuffing": true,
+        "keyword_stuffing_threshold": 5
+      },
+      "section_requirements": {
+        "required": ["summary", "experience", "education", "skills"],
+        "recommended": ["certifications", "projects"],
+        "strict_section_headers": true
+      },
+      "contact_requirements": {
+        "required_fields": ["name", "email", "phone"],
+        "recommended_fields": ["location", "linkedin"],
+        "validates_email_format": true,
+        "validates_phone_format": true
+      },
+      "formatting_risks": {
+        "rejects_tables": true,
+        "rejects_columns": true,
+        "rejects_headers_footers": true,
+        "rejects_images": true,
+        "rejects_text_boxes": true,
+        "max_file_size_mb": 5,
+        "accepted_formats": ["pdf", "docx"]
+      },
+      "date_parsing": {
+        "strictness": "strict",
+        "accepted_formats": ["MM/YYYY", "Month YYYY", "YYYY"],
+        "flags_future_dates": true,
+        "flags_gaps_over_months": 6
+      },
+      "experience_evaluation": {
+        "values_recency": true,
+        "recency_window_years": 5,
+        "values_role_title_match": true,
+        "min_bullet_points_per_role": 2
+      },
+      "scoring_weight_overrides": {
+        "required_keywords": 0.30,
+        "required_skills": 0.30,
+        "preferred_keywords": 0.10,
+        "sections": 0.15,
+        "contact": 0.05,
+        "length": 0.10
+      }
+    },
+    "taleo": {
+      "platform_name": "Taleo (Oracle)",
+      "description": "Legacy enterprise ATS. Very strict plain-text parsing. Heavily keyword-driven with minimal semantic understanding.",
+      "keyword_matching": {
+        "mode": "exact_only",
+        "case_sensitive": false,
+        "requires_exact_job_title_match": true,
+        "penalizes_keyword_stuffing": false,
+        "keyword_stuffing_threshold": null
+      },
+      "section_requirements": {
+        "required": ["experience", "education", "skills"],
+        "recommended": ["summary", "certifications"],
+        "strict_section_headers": true
+      },
+      "contact_requirements": {
+        "required_fields": ["name", "email", "phone"],
+        "recommended_fields": ["location"],
+        "validates_email_format": true,
+        "validates_phone_format": false
+      },
+      "formatting_risks": {
+        "rejects_tables": true,
+        "rejects_columns": true,
+        "rejects_headers_footers": true,
+        "rejects_images": true,
+        "rejects_text_boxes": true,
+        "max_file_size_mb": 5,
+        "accepted_formats": ["pdf", "docx", "txt"]
+      },
+      "date_parsing": {
+        "strictness": "strict",
+        "accepted_formats": ["MM/YYYY", "Month YYYY"],
+        "flags_future_dates": true,
+        "flags_gaps_over_months": 12
+      },
+      "experience_evaluation": {
+        "values_recency": false,
+        "recency_window_years": null,
+        "values_role_title_match": true,
+        "min_bullet_points_per_role": 1
+      },
+      "scoring_weight_overrides": {
+        "required_keywords": 0.35,
+        "required_skills": 0.30,
+        "preferred_keywords": 0.05,
+        "sections": 0.15,
+        "contact": 0.05,
+        "length": 0.10
+      }
+    },
+    "icims": {
+      "platform_name": "iCIMS",
+      "description": "Modern cloud ATS with strong parsing. Supports semantic matching and skills taxonomy. Values structured content.",
+      "keyword_matching": {
+        "mode": "exact_and_synonym",
+        "case_sensitive": false,
+        "requires_exact_job_title_match": false,
+        "penalizes_keyword_stuffing": true,
+        "keyword_stuffing_threshold": 4
+      },
+      "section_requirements": {
+        "required": ["summary", "experience", "education", "skills"],
+        "recommended": ["certifications", "projects"],
+        "strict_section_headers": false
+      },
+      "contact_requirements": {
+        "required_fields": ["name", "email", "phone"],
+        "recommended_fields": ["location", "linkedin"],
+        "validates_email_format": true,
+        "validates_phone_format": true
+      },
+      "formatting_risks": {
+        "rejects_tables": false,
+        "rejects_columns": true,
+        "rejects_headers_footers": true,
+        "rejects_images": true,
+        "rejects_text_boxes": false,
+        "max_file_size_mb": 10,
+        "accepted_formats": ["pdf", "docx"]
+      },
+      "date_parsing": {
+        "strictness": "moderate",
+        "accepted_formats": ["MM/YYYY", "Month YYYY", "YYYY", "MM-YYYY"],
+        "flags_future_dates": true,
+        "flags_gaps_over_months": 12
+      },
+      "experience_evaluation": {
+        "values_recency": true,
+        "recency_window_years": 7,
+        "values_role_title_match": true,
+        "min_bullet_points_per_role": 2
+      },
+      "scoring_weight_overrides": {
+        "required_keywords": 0.25,
+        "required_skills": 0.30,
+        "preferred_keywords": 0.15,
+        "sections": 0.15,
+        "contact": 0.05,
+        "length": 0.10
+      }
+    },
+    "greenhouse": {
+      "platform_name": "Greenhouse",
+      "description": "Modern recruiting platform popular with startups and tech companies. Flexible parsing, values skills and cultural fit signals.",
+      "keyword_matching": {
+        "mode": "exact_and_synonym",
+        "case_sensitive": false,
+        "requires_exact_job_title_match": false,
+        "penalizes_keyword_stuffing": true,
+        "keyword_stuffing_threshold": 4
+      },
+      "section_requirements": {
+        "required": ["experience", "education", "skills"],
+        "recommended": ["summary", "projects", "certifications"],
+        "strict_section_headers": false
+      },
+      "contact_requirements": {
+        "required_fields": ["name", "email"],
+        "recommended_fields": ["phone", "location", "linkedin", "github"],
+        "validates_email_format": true,
+        "validates_phone_format": false
+      },
+      "formatting_risks": {
+        "rejects_tables": false,
+        "rejects_columns": false,
+        "rejects_headers_footers": true,
+        "rejects_images": true,
+        "rejects_text_boxes": false,
+        "max_file_size_mb": 25,
+        "accepted_formats": ["pdf", "docx", "txt", "rtf"]
+      },
+      "date_parsing": {
+        "strictness": "lenient",
+        "accepted_formats": ["MM/YYYY", "Month YYYY", "YYYY", "Q1 YYYY"],
+        "flags_future_dates": false,
+        "flags_gaps_over_months": null
+      },
+      "experience_evaluation": {
+        "values_recency": true,
+        "recency_window_years": 5,
+        "values_role_title_match": false,
+        "min_bullet_points_per_role": 2
+      },
+      "scoring_weight_overrides": {
+        "required_keywords": 0.25,
+        "required_skills": 0.25,
+        "preferred_keywords": 0.15,
+        "sections": 0.15,
+        "contact": 0.05,
+        "length": 0.15
+      }
+    },
+    "lever": {
+      "platform_name": "Lever",
+      "description": "Collaborative recruiting platform. Clean modern parsing, values readability and conciseness. Popular in mid-market tech.",
+      "keyword_matching": {
+        "mode": "exact_and_synonym",
+        "case_sensitive": false,
+        "requires_exact_job_title_match": false,
+        "penalizes_keyword_stuffing": true,
+        "keyword_stuffing_threshold": 4
+      },
+      "section_requirements": {
+        "required": ["experience", "education"],
+        "recommended": ["summary", "skills", "projects", "certifications"],
+        "strict_section_headers": false
+      },
+      "contact_requirements": {
+        "required_fields": ["name", "email"],
+        "recommended_fields": ["phone", "location", "linkedin"],
+        "validates_email_format": true,
+        "validates_phone_format": false
+      },
+      "formatting_risks": {
+        "rejects_tables": false,
+        "rejects_columns": false,
+        "rejects_headers_footers": false,
+        "rejects_images": true,
+        "rejects_text_boxes": false,
+        "max_file_size_mb": 25,
+        "accepted_formats": ["pdf", "docx", "txt"]
+      },
+      "date_parsing": {
+        "strictness": "lenient",
+        "accepted_formats": ["MM/YYYY", "Month YYYY", "YYYY", "Season YYYY"],
+        "flags_future_dates": false,
+        "flags_gaps_over_months": null
+      },
+      "experience_evaluation": {
+        "values_recency": true,
+        "recency_window_years": 5,
+        "values_role_title_match": false,
+        "min_bullet_points_per_role": 1
+      },
+      "scoring_weight_overrides": {
+        "required_keywords": 0.25,
+        "required_skills": 0.25,
+        "preferred_keywords": 0.10,
+        "sections": 0.10,
+        "contact": 0.05,
+        "length": 0.25
+      }
+    },
+    "successfactors": {
+      "platform_name": "SAP SuccessFactors",
+      "description": "Enterprise HCM suite. Structured field-based parsing. Very strict on contact information and date formatting. Common in large corporations.",
+      "keyword_matching": {
+        "mode": "exact_only",
+        "case_sensitive": false,
+        "requires_exact_job_title_match": true,
+        "penalizes_keyword_stuffing": false,
+        "keyword_stuffing_threshold": null
+      },
+      "section_requirements": {
+        "required": ["experience", "education", "skills"],
+        "recommended": ["summary", "certifications"],
+        "strict_section_headers": true
+      },
+      "contact_requirements": {
+        "required_fields": ["name", "email", "phone", "location"],
+        "recommended_fields": ["linkedin"],
+        "validates_email_format": true,
+        "validates_phone_format": true
+      },
+      "formatting_risks": {
+        "rejects_tables": true,
+        "rejects_columns": true,
+        "rejects_headers_footers": true,
+        "rejects_images": true,
+        "rejects_text_boxes": true,
+        "max_file_size_mb": 5,
+        "accepted_formats": ["pdf", "docx"]
+      },
+      "date_parsing": {
+        "strictness": "strict",
+        "accepted_formats": ["MM/YYYY", "Month YYYY"],
+        "flags_future_dates": true,
+        "flags_gaps_over_months": 6
+      },
+      "experience_evaluation": {
+        "values_recency": true,
+        "recency_window_years": 10,
+        "values_role_title_match": true,
+        "min_bullet_points_per_role": 2
+      },
+      "scoring_weight_overrides": {
+        "required_keywords": 0.30,
+        "required_skills": 0.30,
+        "preferred_keywords": 0.05,
+        "sections": 0.15,
+        "contact": 0.10,
+        "length": 0.10
+      }
+    }
+  }
+}
