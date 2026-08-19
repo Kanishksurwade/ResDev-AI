@@ -38,7 +38,7 @@ from ai.resume_optimizer import (
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def sample_master_resume():
-    """Minimal master resume dict."""
+    """Minimal master resume dict with authentic grounded evidence."""
     return {
         "candidate": {
             "personal_info": {
@@ -49,7 +49,55 @@ def sample_master_resume():
                 "linkedin": "linkedin.com/in/test",
                 "github": "github.com/test",
             }
-        }
+        },
+        "capabilities": {
+            "skills": {
+                "ai_llm": ["Data Annotation", "Video Annotation", "Audio Annotation", "Quality Assurance"],
+                "tools_platforms": ["Python", "SQL", "CVAT", "Excel"],
+                "core": ["Attention to Detail", "Remote Work Experience"],
+            },
+            "certifications": [{"name": "Data Science Certificate", "issuer": "Coursera"}],
+        },
+        "experience": [
+            {
+                "company": "TestCo",
+                "role": "Data Annotator",
+                "location": "Remote",
+                "start_date": "Jan 2023",
+                "end_date": "Present",
+                "bullets": [
+                    "Performed data annotation on text, video, and audio samples.",
+                    "Conducted quality assurance reviews maintaining 99% accuracy.",
+                    "Documented edge cases and updated labeling guidelines.",
+                ],
+            },
+            {
+                "company": "AnalyticsCorp",
+                "role": "Data Analyst",
+                "location": "New York, NY",
+                "start_date": "Jun 2021",
+                "end_date": "Dec 2022",
+                "bullets": ["Analyzed datasets and created operational reports."],
+            },
+        ],
+        "projects": [
+            {
+                "name": "Annotation Pipeline",
+                "technologies": ["Python", "CVAT"],
+                "start_date": "Mar 2023",
+                "end_date": "Jun 2023",
+                "bullets": ["Built automated annotation pipeline for image classification."],
+            }
+        ],
+        "education": [
+            {
+                "degree": "B.S. in Computer Science",
+                "institution": "State University",
+                "location": "New York, NY",
+                "start_year": "2017",
+                "end_year": "2021",
+            }
+        ],
     }
 
 

@@ -1,11 +1,12 @@
 import json
 import re
+import os
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
 
-DEFAULT_MODEL = "qwen3.5:4b"
+DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "qwen3.5:4b")
 DEFAULT_OLLAMA_URL = "http://localhost:11434/api/generate"
 DEFAULT_TIMEOUT_SECONDS = 600
 DEFAULT_TARGET_SCORE = 85

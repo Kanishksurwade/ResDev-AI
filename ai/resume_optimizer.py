@@ -1,3 +1,30 @@
+"""
+ResDev AI - Evidence-Grounded Multi-ATS Resume Optimizer
+
+Orchestrates the resume optimization loop with:
+    1. Deterministic Master Resume Evidence Validation (Hard Gate)
+    2. Requirement Matrix & Controlled Edit Planning
+    3. Deterministic ATS Analysis & Multi-Platform Simulation
+    4. Qualitative Semantic Review (Qwen)
+    5. Optimization Guard with Automatic Rollback on Regressions
+
+Architecture:
+    Base Resume
+        ↓
+    Evidence Validation (Hard Gate 1)
+        ↓
+    Requirement Matrix & Valid Gap Extraction
+        ↓
+    Targeted Edit Plan / Revision
+        ↓
+    Deterministic ATS + Multi-ATS + Semantic Evaluation
+        ↓
+    Optimization Guard (Accept as Best OR Rollback)
+        ↓
+    Repeat for remaining valid gaps
+"""
+
+import copy
 import json
 import sys
 from pathlib import Path
@@ -15,6 +42,15 @@ try:
     from ai.resume_evaluator import evaluate_resume
     from ai.ats_analyzer import analyze_ats_compatibility
     from ai.multi_ats_validator import validate_multi_ats
+    from ai.evidence_validator import validate_resume_evidence
+    from ai.edit_plan import (
+        build_requirement_matrix,
+        get_unmet_valid_gaps,
+        get_unsupported_gaps,
+        generate_targeted_edit_plan,
+        apply_edit_plan,
+    )
+    from ai.optimization_guard import OptimizationGuard
 except ImportError:
     from jd_analyzer import analyze_job_description
     from resume_matcher import match_resume_to_jd
@@ -22,6 +58,15 @@ except ImportError:
     from resume_evaluator import evaluate_resume
     from ats_analyzer import analyze_ats_compatibility
     from multi_ats_validator import validate_multi_ats
+    from evidence_validator import validate_resume_evidence
+    from edit_plan import (
+        build_requirement_matrix,
+        get_unmet_valid_gaps,
+        get_unsupported_gaps,
+        generate_targeted_edit_plan,
+        apply_edit_plan,
+    )
+    from optimization_guard import OptimizationGuard
 
 DEFAULT_TARGET_SCORE = 85
 DEFAULT_MAX_ITERATIONS = 5
@@ -81,9 +126,6 @@ def _extract_multi_ats_feedback(
 ) -> tuple[list[dict[str, Any]], list[str], int, int]:
     """
     Extract actionable improvement actions and feedback notes from multi-ATS validation.
-
-    Returns:
-        (actions, feedback_notes, platforms_passed, platforms_total)
     """
     actions: list[dict[str, Any]] = []
     notes: list[str] = []
@@ -92,7 +134,6 @@ def _extract_multi_ats_feedback(
     platforms_passed = summary.get("passed", 0) + summary.get("warned", 0)
     platforms_total = summary.get("total_platforms", len(platforms))
 
-    # Collect cross-platform missing keywords/skills (deduplicated)
     seen_kw: set[str] = set()
     seen_sk: set[str] = set()
 
@@ -122,7 +163,6 @@ def _extract_multi_ats_feedback(
         for cf in presult.get("critical_failures", []):
             notes.append(f"CRITICAL: {cf}")
 
-    # Append cross-platform recommendations (top 2)
     for rec in multi_ats_result.get("recommendations", [])[:2]:
         notes.append(f"Multi-ATS: {rec}")
 
@@ -137,19 +177,16 @@ def _build_revision_feedback(
 ) -> tuple[list[dict[str, Any]], str | None]:
     """
     Assemble prioritized improvement actions and context notes based on the revision trigger.
-    Incorporates multi-ATS validation feedback when available.
     """
     combined_actions: list[dict[str, Any]] = []
     feedback_notes: list[str] = []
 
-    # 1. Prioritize multi-ATS cross-platform failures (most actionable)
     if multi_ats_result:
         multi_actions, multi_notes, _, _ = _extract_multi_ats_feedback(multi_ats_result)
         combined_actions.extend(multi_actions)
         feedback_notes.extend(multi_notes)
 
-    # 2. Prioritize single-engine ATS deficiencies if present
-    if trigger in ("ATS_DEFICIENCY", "BOTH_DEFICIENT"):
+    if trigger in ("ATS_DEFICIENCY", "BOTH_DEFICIENT", "MULTI_ATS_FAILURES"):
         for kw in ats_result.get("missing_required_keywords", []):
             combined_actions.append({
                 "target": "experience",
@@ -169,14 +206,12 @@ def _build_revision_feedback(
                 "reason": "Deterministic ATS structure requirement",
             })
 
-    # 3. Append Qwen semantic actions
     qwen_actions = qwen_result.get("improvement_actions", [])
     if isinstance(qwen_actions, list):
         for act in qwen_actions:
             if isinstance(act, dict):
                 combined_actions.append(act)
 
-    # Deduplicate by change text, cap to top 5
     seen_changes: set[str] = set()
     deduped: list[dict[str, Any]] = []
     for a in combined_actions:
@@ -186,7 +221,6 @@ def _build_revision_feedback(
             deduped.append(a)
     combined_actions = deduped[:5]
 
-    # 4. Build text feedback notes
     qwen_weaknesses = qwen_result.get("weaknesses", [])
     if qwen_weaknesses:
         feedback_notes.append("Semantic Weaknesses to Address:")
@@ -194,7 +228,7 @@ def _build_revision_feedback(
             feedback_notes.append(f"- {w}")
 
     ats_recs = ats_result.get("recommendations", [])
-    if ats_recs and trigger in ("ATS_DEFICIENCY", "BOTH_DEFICIENT"):
+    if ats_recs and trigger in ("ATS_DEFICIENCY", "BOTH_DEFICIENT", "MULTI_ATS_FAILURES"):
         feedback_notes.append("ATS Guidance:")
         for rec in ats_recs[:2]:
             feedback_notes.append(f"- {rec}")
@@ -211,8 +245,7 @@ def optimize_resume(
     progress_callback: Callable[[int, int, dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """
-    Run the end-to-end automated resume generation, deterministic ATS analysis,
-    Qwen semantic evaluation, and optimization loop.
+    Run the evidence-grounded, multi-ATS protected resume optimization loop.
 
     Parameters:
         master_resume: Master resume data dictionary or path to JSON file.
@@ -222,7 +255,7 @@ def optimize_resume(
         progress_callback: Optional callback(iteration, max_iterations, iteration_data).
 
     Returns:
-        Structured optimization result containing history, best scores, and best resume.
+        Structured optimization result with regression protection and evidence audit.
     """
     # 1. Load Master Resume
     if isinstance(master_resume, (str, Path)) and Path(str(master_resume)).exists():
@@ -259,165 +292,191 @@ def optimize_resume(
         structured_jd=structured_jd,
     )
 
-    # 4. Optimization Loop State
-    iterations_history: list[dict[str, Any]] = []
-    best_combined_score = -1.0
-    best_ats_score = -1
-    best_qwen_score = -1
-    best_resume: dict[str, Any] = {}
-    best_ats_eval: dict[str, Any] = {}
-    best_qwen_eval: dict[str, Any] = {}
-    best_multi_ats_eval: dict[str, Any] = {}
+    # 4. Initialize Optimization Guard
+    guard = OptimizationGuard(target_score=target_score)
+
+    active_resume: dict[str, Any] = {}
     current_improvement_actions: list[dict[str, Any]] | None = None
     current_feedback: str | None = None
-    previous_combined_score: float | None = None
-    loop_status = "MAX_ITERATIONS_REACHED"
+    iterations_history: list[dict[str, Any]] = []
 
     for iteration in range(1, max_iterations + 1):
-        # A. Generate Tailored Resume (initial or applying structured improvement actions)
-        tailored_resume = generate_tailored_resume(
+        # A. Candidate Generation / Targeted Edit Plan
+        if iteration == 1:
+            # Baseline candidate generation
+            candidate_resume = generate_tailored_resume(
+                master_resume=master_resume_data,
+                structured_jd=structured_jd,
+                matching_analysis=matching_analysis,
+                revision_feedback=None,
+                improvement_actions=None,
+            )
+            applied_edits: list[str] = ["Baseline structured resume generated from master evidence"]
+            rejected_edits: list[str] = []
+        else:
+            # Build Requirement Matrix to identify genuine remaining valid gaps
+            req_matrix = build_requirement_matrix(structured_jd, master_resume_data, active_resume)
+            unmet_valid_gaps = get_unmet_valid_gaps(req_matrix)
+
+            if unmet_valid_gaps:
+                # Targeted edit plan for verified unmet gaps
+                edit_plan = generate_targeted_edit_plan(
+                    current_resume=active_resume,
+                    master_resume=master_resume_data,
+                    unmet_valid_gaps=unmet_valid_gaps,
+                )
+                candidate_resume, applied_edits, rejected_edits = apply_edit_plan(
+                    current_resume=active_resume,
+                    edit_plan=edit_plan,
+                    master_resume=master_resume_data,
+                )
+            else:
+                # If no valid gaps remain, apply targeted semantic revision actions
+                candidate_resume = generate_tailored_resume(
+                    master_resume=master_resume_data,
+                    structured_jd=structured_jd,
+                    matching_analysis=matching_analysis,
+                    revision_feedback=current_feedback,
+                    improvement_actions=current_improvement_actions,
+                )
+                applied_edits = ["Applied structured semantic revision feedback"]
+                rejected_edits = []
+
+        # B. Hard Gate 1: Deterministic Evidence Validation
+        evidence_eval = validate_resume_evidence(
+            candidate_resume=candidate_resume,
             master_resume=master_resume_data,
-            structured_jd=structured_jd,
-            matching_analysis=matching_analysis,
-            revision_feedback=current_feedback,
-            improvement_actions=current_improvement_actions,
         )
 
-        # B. Run Deterministic ATS Compatibility Analysis (Primary Check)
-        ats_result = analyze_ats_compatibility(
+        # C. Deterministic ATS Compatibility Analysis
+        ats_eval = analyze_ats_compatibility(
             structured_jd=structured_jd,
-            structured_resume=tailored_resume,
+            structured_resume=candidate_resume,
             threshold=target_score,
         )
 
-        # C. Run Qwen Semantic Quality Evaluation
-        qwen_result = evaluate_resume(
-            tailored_resume=tailored_resume,
+        # D. Multi-ATS Platform Simulation Validation
+        multi_ats_eval = validate_multi_ats(
+            structured_jd=structured_jd,
+            structured_resume=candidate_resume,
+        )
+
+        # E. Qualitative Semantic Review
+        qwen_eval = evaluate_resume(
+            tailored_resume=candidate_resume,
             structured_jd=structured_jd,
             target_score=target_score,
         )
 
-        # D. Run Multi-ATS Platform Validation
-        multi_ats_result = validate_multi_ats(
-            structured_jd=structured_jd,
-            structured_resume=tailored_resume,
-        )
-        multi_summary = multi_ats_result.get("summary", {})
-        multi_passed_count = multi_summary.get("passed", 0) + multi_summary.get("warned", 0)
-        multi_total_count = multi_summary.get("total_platforms", 0)
-        multi_failed_count = multi_summary.get("failed", 0)
-        multi_overall_status = multi_ats_result.get("overall_status", "FAIL")
-
-        ats_score = ats_result.get("ats_score", 0)
-        qwen_score = qwen_result.get("overall_score", 0)
-        combined_score = round(0.5 * ats_score + 0.5 * qwen_score, 1)
-
-        # E. Combined Decision Logic (includes multi-ATS as gate)
-        combined_passed, trigger, primary_issues = _evaluate_combined_decision(
-            ats_result=ats_result,
-            qwen_result=qwen_result,
-            target_score=target_score,
+        # F. Optimization Guard: Decision & Regression Protection
+        is_accepted, decision_status, decision_reason = guard.evaluate_candidate(
+            candidate_resume=candidate_resume,
+            iteration=iteration,
+            ats_eval=ats_eval,
+            multi_ats_eval=multi_ats_eval,
+            qwen_eval=qwen_eval,
+            evidence_eval=evidence_eval,
         )
 
-        # Multi-ATS gate: if any platform has critical failures, block pass
-        if combined_passed and multi_failed_count > 0:
-            combined_passed = False
-            trigger = "MULTI_ATS_FAILURES"
-            for cf in multi_ats_result.get("critical_failures", [])[:3]:
-                primary_issues.append(f"Multi-ATS: {cf}")
-
-        # F. Score progression and outcome tracking
-        score_before = previous_combined_score if previous_combined_score is not None else combined_score
-        score_after = combined_score
-        score_delta = round(score_after - score_before, 1)
-
-        if iteration == 1:
-            outcome = "INITIAL_GENERATION"
-        elif score_delta > 0:
-            outcome = "IMPROVED"
+        # G. Update Active Resume or Rollback
+        if is_accepted:
+            active_resume = copy.deepcopy(candidate_resume)
         else:
-            outcome = "NO_IMPROVEMENT"
+            # Roll back to the best verified candidate
+            active_resume = copy.deepcopy(guard.best_candidate) if guard.best_candidate else copy.deepcopy(candidate_resume)
 
-        combined_status = "OPTIMIZATION COMPLETE" if combined_passed else "NEEDS REVISION"
+        ats_score = ats_eval.get("ats_score", 0)
+        qwen_score = qwen_eval.get("overall_score", 0)
+        combined_score = round(0.5 * ats_score + 0.5 * qwen_score, 1)
+        multi_summary = multi_ats_eval.get("summary", {})
+        multi_p = multi_summary.get("passed", 0) + multi_summary.get("warned", 0)
+        multi_t = multi_summary.get("total_platforms", 6)
 
-        # Record iteration metadata
         iteration_record = {
             "iteration": iteration,
             "ats_score": ats_score,
-            "ats_passed": ats_result.get("passed", False),
-            "ats_metrics": ats_result.get("metrics", {}),
+            "ats_passed": ats_eval.get("passed", False),
+            "ats_metrics": ats_eval.get("metrics", {}),
             "qwen_score": qwen_score,
-            "qwen_passed": qwen_result.get("pass_status", False),
+            "qwen_passed": qwen_eval.get("pass_status", False),
             "combined_score": combined_score,
-            "combined_status": combined_status,
-            "score_before": score_before,
-            "score_after": score_after,
-            "score_delta": score_delta,
-            "outcome": outcome,
-            "revision_trigger": trigger,
-            "primary_issues": primary_issues,
-            "ats_missing_keywords": ats_result.get("missing_required_keywords", []),
-            "ats_missing_skills": ats_result.get("missing_required_skills", []),
-            "qwen_weaknesses": qwen_result.get("weaknesses", []),
-            "improvement_actions": qwen_result.get("improvement_actions", []),
-            "multi_ats_status": multi_overall_status,
-            "multi_ats_passed": multi_passed_count,
-            "multi_ats_total": multi_total_count,
-            "multi_ats_failed": multi_failed_count,
-            "multi_ats_critical_failures": multi_ats_result.get("critical_failures", []),
+            "multi_ats_status": multi_ats_eval.get("overall_status", "FAIL"),
+            "multi_ats_passed": multi_p,
+            "multi_ats_total": multi_t,
+            "multi_ats_failed": multi_summary.get("failed", 0),
+            "multi_ats_critical_failures": multi_ats_eval.get("critical_failures", []),
+            "evidence_passed": evidence_eval.get("passed", False),
+            "evidence_violations": evidence_eval.get("violations", []),
+            "decision_status": decision_status,
+            "decision_reason": decision_reason,
+            "applied_edits": applied_edits,
+            "rejected_edits": rejected_edits,
+            "is_best_candidate": is_accepted,
+            "current_best_iteration": guard.best_iteration,
+            "current_best_ats": guard.best_ats_score,
+            "current_best_multi": f"{guard.best_multi_passed}/{guard.best_multi_total}",
         }
         iterations_history.append(iteration_record)
 
         if progress_callback:
             progress_callback(iteration, max_iterations, iteration_record)
 
-        # G. Track Best Resume
-        if combined_score > best_combined_score or iteration == 1:
-            best_combined_score = combined_score
-            best_ats_score = ats_score
-            best_qwen_score = qwen_score
-            best_resume = tailored_resume
-            best_ats_eval = ats_result
-            best_qwen_eval = qwen_result
-            best_multi_ats_eval = multi_ats_result
-
-        # H. Check Combined Pass Criteria
-        if combined_passed:
-            loop_status = "OPTIMIZATION COMPLETE"
-            break
-
-        # I. Formulate Next Iteration Actions based on Trigger + Multi-ATS
+        # H. Formulate Feedback for next iteration
         current_improvement_actions, current_feedback = _build_revision_feedback(
-            ats_result=ats_result,
-            qwen_result=qwen_result,
-            trigger=trigger,
-            multi_ats_result=multi_ats_result,
+            ats_result=ats_eval,
+            qwen_result=qwen_eval,
+            trigger="ATS_DEFICIENCY" if not ats_eval.get("passed") else "QWEN_SEMANTIC_WEAKNESS",
+            multi_ats_result=multi_ats_eval,
         )
 
-        previous_combined_score = combined_score
+        # Check for Early Exit if all criteria comfortably met
+        if (
+            guard.best_ats_score >= target_score
+            and guard.best_multi_passed >= 5
+            and guard.best_qwen_score >= target_score
+            and evidence_eval.get("passed", False)
+        ):
+            break
 
-    # 5. Assemble Final Optimization Result
-    multi_summary_final = best_multi_ats_eval.get("summary", {})
+    # 5. Requirement Matrix Final Audit
+    final_best_resume = guard.best_candidate or active_resume
+    final_req_matrix = build_requirement_matrix(structured_jd, master_resume_data, final_best_resume)
+    unsupported_jd_gaps = get_unsupported_gaps(final_req_matrix)
+
+    guard_result = guard.get_final_result()
+
     result = {
-        "status": loop_status,
+        "status": "OPTIMIZATION COMPLETE" if guard_result["ats_passed"] else "MAX_ITERATIONS_REACHED",
         "target_score": target_score,
         "max_iterations": max_iterations,
         "total_iterations": len(iterations_history),
-        "best_ats_score": best_ats_score,
-        "best_qwen_score": best_qwen_score,
-        "best_combined_score": best_combined_score,
-        "ats_passed": bool(best_ats_score >= target_score),
-        "qwen_passed": bool(best_qwen_score >= target_score),
-        "multi_ats_passed": multi_summary_final.get("passed", 0) + multi_summary_final.get("warned", 0),
-        "multi_ats_total": multi_summary_final.get("total_platforms", 0),
-        "multi_ats_failed": multi_summary_final.get("failed", 0),
-        "multi_ats_overall_status": best_multi_ats_eval.get("overall_status", "UNKNOWN"),
-        "best_resume": best_resume,
-        "best_ats_evaluation": best_ats_eval,
-        "best_qwen_evaluation": best_qwen_eval,
-        "best_multi_ats_evaluation": best_multi_ats_eval,
-        "remaining_gaps": best_qwen_eval.get("weaknesses", []) + best_ats_eval.get("structural_issues", []),
+        "best_iteration": guard_result["best_iteration"],
+        "best_ats_score": guard_result["best_ats_score"],
+        "best_qwen_score": guard_result["best_qwen_score"],
+        "best_combined_score": guard_result["best_combined_score"],
+        "ats_passed": guard_result["ats_passed"],
+        "qwen_passed": guard_result["qwen_passed"],
+        "multi_ats_passed": guard_result["best_multi_ats_passed"],
+        "multi_ats_total": guard_result["best_multi_ats_total"],
+        "multi_ats_failed": guard_result["best_multi_ats_total"] - guard_result["best_multi_ats_passed"],
+        "multi_ats_overall_status": guard_result.get("best_evaluations", {}).get("multi_ats", {}).get(
+            "overall_status", "PASS" if guard_result["best_multi_ats_passed"] == guard_result["best_multi_ats_total"] else "FAIL"
+        ),
+        "best_resume": final_best_resume,
+        "best_ats_evaluation": guard_result.get("best_evaluations", {}).get("ats", {}),
+        "best_multi_ats_evaluation": guard_result.get("best_evaluations", {}).get("multi_ats", {}),
+        "best_qwen_evaluation": guard_result.get("best_evaluations", {}).get("qwen", {}),
+        "best_evidence_evaluation": guard_result.get("best_evaluations", {}).get("evidence", {}),
+        "unsupported_jd_requirements": [
+            f"Unsupported JD requirement: '{ug['text']}' (No evidence in Master Resume -> Correctly omitted)"
+            for ug in unsupported_jd_gaps
+        ],
+        "remaining_gaps": (
+            guard_result.get("best_evaluations", {}).get("qwen", {}).get("weaknesses", [])
+            + [f"Unsupported JD requirement: {ug['text']}" for ug in unsupported_jd_gaps]
+        ),
         "iterations": iterations_history,
+        "decision_history": guard_result["decision_history"],
     }
 
     return result
@@ -470,78 +529,65 @@ if __name__ == "__main__":
         ],
     }
 
-    print("=" * 70)
-    print("RESDEV AI - TRIPLE-ENGINE RESUME OPTIMIZATION PIPELINE")
-    print("=" * 70)
-    print("Candidate:", master_resume_content.get("candidate", {}).get("personal_info", {}).get("name"))
-    print("Target Role:", target_structured_jd.get("job_title"))
-    print(f"Target Threshold: {DEFAULT_TARGET_SCORE}/100 | Max Iterations: {DEFAULT_MAX_ITERATIONS}")
-    print("Engines: Deterministic ATS + Multi-ATS Validator + Qwen Semantic Evaluator")
-    print("-" * 70)
+    print("=" * 70, flush=True)
+    print("RESDEV AI - EVIDENCE-GROUNDED RESUME OPTIMIZATION PIPELINE", flush=True)
+    print("=" * 70, flush=True)
+    print("Candidate:", master_resume_content.get("candidate", {}).get("personal_info", {}).get("name"), flush=True)
+    print("Target Role:", target_structured_jd.get("job_title"), flush=True)
+    print(f"Target Threshold: {DEFAULT_TARGET_SCORE}/100 | Max Iterations: 2", flush=True)
+    print("Engines: Evidence Validator + Deterministic ATS + Multi-ATS + Qwen", flush=True)
+    print("-" * 70, flush=True)
 
     def on_iteration_progress(it: int, max_it: int, data: dict[str, Any]) -> None:
         ats_tag = "[PASS]" if data["ats_passed"] else "[FAIL]"
         qwen_tag = "[PASS]" if data["qwen_passed"] else "[NEEDS REVISION]"
-        multi_tag = data.get("multi_ats_status", "?")
-        multi_p = data.get("multi_ats_passed", 0)
-        multi_t = data.get("multi_ats_total", 0)
-        print(f"\n>>> Iteration {it}/{max_it}:")
-        print(f"    ATS Score: {data['ats_score']}/100 {ats_tag}")
-        print(f"    Multi-ATS: {multi_p}/{multi_t} platforms OK [{multi_tag}]")
-        print(f"    Qwen Score: {data['qwen_score']}/100 {qwen_tag}")
-        print(f"    Combined Status: {data['combined_status']} ({data['outcome']})")
-        if data["revision_trigger"] != "NONE":
-            print(f"    Revision Trigger: {data['revision_trigger']}")
-            if data["revision_trigger"] in ("ATS_DEFICIENCY", "BOTH_DEFICIENT", "MULTI_ATS_FAILURES"):
-                print("    ATS ISSUE:")
-                for issue in data.get("ats_missing_keywords", [])[:2]:
-                    print(f"      - Missing required keyword: \"{issue}\"")
-                for issue in data.get("ats_missing_skills", [])[:2]:
-                    print(f"      - Missing required skill: \"{issue}\"")
-            if data.get("multi_ats_critical_failures"):
-                print("    MULTI-ATS CRITICAL:")
-                for cf in data["multi_ats_critical_failures"][:2]:
-                    print(f"      - {cf}")
-            if data["revision_trigger"] in ("QWEN_SEMANTIC_WEAKNESS", "BOTH_DEFICIENT"):
-                print("    QWEN ISSUE:")
-                for w in data.get("qwen_weaknesses", [])[:2]:
-                    print(f"      - {w}")
+        ev_tag = "[VERIFIED]" if data["evidence_passed"] else "[VIOLATION]"
+        print(f"\n>>> Iteration {it}/{max_it}:", flush=True)
+        print(f"    Evidence Integrity : {ev_tag}", flush=True)
+        print(f"    Deterministic ATS  : {data['ats_score']}/100 {ats_tag}", flush=True)
+        print(f"    Multi-ATS Coverage : {data['multi_ats_passed']}/{data['multi_ats_total']} platforms OK [{data['multi_ats_status']}]", flush=True)
+        print(f"    Qwen Semantic Score: {data['qwen_score']}/100 {qwen_tag}", flush=True)
+        print(f"    Guard Decision     : {data['decision_status']}", flush=True)
+        print(f"    Decision Reason    : {data['decision_reason']}", flush=True)
+        if data.get("evidence_violations"):
+            print("    [!] FACTUAL VIOLATIONS:", flush=True)
+            for v in data["evidence_violations"][:2]:
+                print(f"        - {v.get('type')}: {v.get('value')} ({v.get('reason')})", flush=True)
 
     optimization_result = optimize_resume(
         master_resume=master_resume_content,
         job_description=target_structured_jd,
         target_score=85,
-        max_iterations=3,
+        max_iterations=2,
         progress_callback=on_iteration_progress,
     )
 
-    print("\n" + "=" * 70)
-    print("FINAL OPTIMIZATION SUMMARY & DUAL SCORECARD")
-    print("=" * 70)
-    print(f"Final Status: {optimization_result['status']}")
-    print(f"Total Iterations: {optimization_result['total_iterations']}/{optimization_result['max_iterations']}")
-    print(f"Deterministic ATS Score: {optimization_result['best_ats_score']}/100 {'[PASS]' if optimization_result['ats_passed'] else '[FAIL]'}")
-    print(f"Multi-ATS Platforms: {optimization_result['multi_ats_passed']}/{optimization_result['multi_ats_total']} OK [{optimization_result['multi_ats_overall_status']}]")
-    print(f"Qwen Semantic Score: {optimization_result['best_qwen_score']}/100 {'[PASS]' if optimization_result['qwen_passed'] else '[NEEDS REVISION]'}")
-    print(f"Combined Composite Score: {optimization_result['best_combined_score']}/100 (Threshold: {optimization_result['target_score']})")
+    print("\n" + "=" * 70, flush=True)
+    print("FINAL OPTIMIZATION SUMMARY & DUAL SCORECARD", flush=True)
+    print("=" * 70, flush=True)
+    print(f"Final Status: {optimization_result['status']}", flush=True)
+    print(f"Best Candidate Selected from Iteration: #{optimization_result['best_iteration']} of {optimization_result['total_iterations']}", flush=True)
+    print(f"Deterministic ATS Score: {optimization_result['best_ats_score']}/100 {'[PASS]' if optimization_result['ats_passed'] else '[FAIL]'}", flush=True)
+    print(f"Multi-ATS Platforms    : {optimization_result['multi_ats_passed']}/{optimization_result['multi_ats_total']} OK", flush=True)
+    print(f"Qwen Semantic Score    : {optimization_result['best_qwen_score']}/100 {'[PASS]' if optimization_result['qwen_passed'] else '[NEEDS REVISION]'}", flush=True)
+    print(f"Combined Composite     : {optimization_result['best_combined_score']}/100 (Threshold: {optimization_result['target_score']})", flush=True)
 
-    print("\nIteration History & Score Progression:")
-    for it in optimization_result["iterations"]:
-        print(f"  * Iteration {it['iteration']}: ATS={it['ats_score']}/100 | Qwen={it['qwen_score']}/100 | Combined={it['combined_score']}/100 -> {it['combined_status']} ({it['revision_trigger']})")
+    print("\nOptimization Guard Decision History (Rollback Protection):", flush=True)
+    for d in optimization_result["decision_history"]:
+        status_symbol = "[+] ACCEPTED" if d["accepted_as_best"] else "[-] REJECTED"
+        print(f"  * Iteration {d['iteration']}: {status_symbol} -> {d['decision_status']}", flush=True)
+        print(f"      Details: {d['decision_reason']}", flush=True)
 
-    print("\nBest Resume Details:")
+    print("\nBest Resume Details:", flush=True)
     best_res = optimization_result.get("best_resume", {})
-    print(f"  Target Title: {best_res.get('personal_info', {}).get('target_title')}")
-    print(f"  Summary: {best_res.get('summary')[:140]}...")
-    print(f"  Technical Skills ({len(best_res.get('skills', {}).get('technical_skills', []))}): {', '.join(best_res.get('skills', {}).get('technical_skills', []))}")
+    print(f"  Target Title: {best_res.get('personal_info', {}).get('target_title')}", flush=True)
+    print(f"  Summary: {best_res.get('summary', '')[:140]}...", flush=True)
+    tech_skills = best_res.get("skills", {}).get("technical_skills", [])
+    print(f"  Technical Skills ({len(tech_skills)}): {', '.join(tech_skills)}", flush=True)
 
-    print("\nATS Metrics Breakdown:")
-    for m_k, m_v in optimization_result.get("best_ats_evaluation", {}).get("metrics", {}).items():
-        print(f"  * {m_k.replace('_', ' ').title():<28}: {m_v:.1f}%")
+    if optimization_result.get("unsupported_jd_requirements"):
+        print("\nUnsupported JD Requirements (Honest Fact-Check):", flush=True)
+        for u in optimization_result["unsupported_jd_requirements"]:
+            print(f"  [x] {u}", flush=True)
 
-    if optimization_result.get("remaining_gaps"):
-        print("\nRemaining Factual Gaps / Unmet Nuances:")
-        for gap in optimization_result["remaining_gaps"]:
-            print(f"  [-] {gap}")
-
-    print("=" * 70)
+    print("=" * 70, flush=True)
