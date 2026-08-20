@@ -1,12 +1,13 @@
 import json
 import re
 import os
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
-from google import genai
-
-DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "gemini-3.5-flash-lite")
+DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "qwen3.5:4b")
+DEFAULT_OLLAMA_URL = "http://localhost:11434/api/generate"
 DEFAULT_TIMEOUT_SECONDS = 600
 
 # Expected schema fields
@@ -127,42 +128,45 @@ def load_prompt_template(prompt_path: str | Path | None = None) -> str:
     return FALLBACK_PROMPT_TEMPLATE
 
 
-def call_gemini(
+def call_ollama(
     prompt: str,
     model: str = DEFAULT_MODEL,
+    api_url: str = DEFAULT_OLLAMA_URL,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> str:
     """
-    Send the prompt to Gemini and return the model's text response.
+    Send prompt to the local Ollama API and return the raw model text response.
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "think": False,
+        "format": "json",
+        "options": {
+            "temperature": 0.1,
+            "num_predict": 4096,
+        },
+    }
 
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is not set. "
-            "Please configure your Gemini API key."
-        )
+    req = urllib.request.Request(
+        api_url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
 
     try:
-        client = genai.Client(api_key=api_key)
-
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-        )
-
-        text = response.text
-
-        if not text:
-            raise RuntimeError(
-                "Gemini returned an empty response."
-            )
-
-        return text
-
-    except Exception as error:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            body = response.read().decode("utf-8")
+            data = json.loads(body)
+            return data.get("response", "")
+    except urllib.error.URLError as error:
         raise RuntimeError(
-            f"Error communicating with Gemini: {error}"
+            f"Failed to connect to Ollama at {api_url}. "
+            f"Ensure Ollama is running locally and model '{model}' is available. Details: {error}"
         ) from error
+    except Exception as error:
+        raise RuntimeError(f"Error communicating with Ollama API: {error}") from error
 
 
 def parse_json_response(raw_text: str) -> dict[str, Any]:
@@ -388,12 +392,12 @@ def generate_tailored_resume(
     revision_feedback: str | None = None,
     improvement_actions: list[dict[str, Any]] | None = None,
     model: str = DEFAULT_MODEL,
+    ollama_url: str = DEFAULT_OLLAMA_URL,
     prompt_path: str | Path | None = None,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
-    **kwargs: Any,
 ) -> dict[str, Any]:
     """
-    Generate a tailored structured resume JSON aligned with the target JD, matching analysis, and improvement actions using Gemini.
+    Generate a tailored structured resume JSON aligned with the target JD, matching analysis, and improvement actions.
 
     Parameters:
         master_resume: Master resume dict or path to JSON file.
@@ -401,7 +405,8 @@ def generate_tailored_resume(
         matching_analysis: Optional matching analysis dict or JSON string.
         revision_feedback: Optional feedback from previous evaluation loop for revisions.
         improvement_actions: Optional structured list of evaluator improvement action dictionaries.
-        model: Gemini model name (default: "gemini-3.5-flash-lite").
+        model: Ollama model name (default: "qwen3.5:4b").
+        ollama_url: Ollama API endpoint.
         prompt_path: Optional custom prompt template path.
         timeout: Timeout in seconds.
 
@@ -482,10 +487,12 @@ def generate_tailored_resume(
     prompt = prompt.replace("{matching_analysis_json}", matching_analysis_str)
     prompt = prompt.replace("{revision_feedback_section}", feedback_section)
 
-    # 6. Call Gemini
-    raw_response = call_gemini(
+    # 6. Call Ollama
+    raw_response = call_ollama(
         prompt=prompt,
         model=model,
+        api_url=ollama_url,
+        timeout=timeout,
     )
 
     # 7. Parse response safely with graceful fallback
@@ -573,7 +580,7 @@ if __name__ == "__main__":
     print("=" * 70)
     print("Candidate:", master_resume_data.get("candidate", {}).get("personal_info", {}).get("name"))
     print("Target Role:", target_structured_jd.get("job_title"))
-    print("Generating tailored resume with Gemini (gemini-3.5-flash-lite)...")
+    print("Generating tailored resume with local Ollama (qwen3.5:4b)...")
     print("-" * 70)
 
     tailored_resume = generate_tailored_resume(
