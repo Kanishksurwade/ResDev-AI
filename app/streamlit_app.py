@@ -23,8 +23,8 @@ if str(_REPO_ROOT) not in sys.path:
 from ai.resume_optimizer import optimize_resume
 from ai.latex_renderer import render_resume_files
 from ai.final_resume_validator import save_final_resume
+from utils.resume_parser import parse_uploaded_resume, ResumeParseError, SUPPORTED_EXTENSIONS
 
-_MASTER_RESUME_PATH = _REPO_ROOT / "data" / "master_resume.json"
 _GENERATED_DIR = _REPO_ROOT / "generated"
 
 
@@ -33,7 +33,7 @@ _GENERATED_DIR = _REPO_ROOT / "generated"
 # ============================================================
 
 st.set_page_config(
-    page_title="ResDev AI",
+    page_title="ResDev AI — Evidence-Grounded Resume Automation",
     page_icon="🕹️",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -223,6 +223,18 @@ md(
         border-radius: 2px !important;
     }
 
+    /* ================= FILE UPLOADER ================= */
+
+    section[data-testid="stFileUploader"] {
+        background: #0a0a14 !important;
+        border: 2px dashed #2a2a45 !important;
+        border-radius: 2px !important;
+        padding: 8px !important;
+    }
+    section[data-testid="stFileUploader"]:hover {
+        border-color: var(--cyan) !important;
+    }
+
     /* ================= GENERATE BUTTON ================= */
 
     .stButton > button {
@@ -271,6 +283,12 @@ md(
         letter-spacing: 1.5px;
         text-transform: uppercase;
         margin-top: 36px;
+        padding-top: 12px;
+        border-top: 1px solid #1e1e30;
+    }
+    .footer a {
+        color: var(--cyan);
+        text-decoration: none;
     }
 
     </style>
@@ -291,9 +309,9 @@ md(
             <span>R</span><span>E</span><span>S</span><span>D</span><span>E</span><span>V</span> AI
         </div>
         <div class="tagline">
-            Paste a job description + your master resume. ResDev AI reads
-            both and produces a tailored, ATS-friendly resume — grounded
-            in what's actually on your resume. No fluff, no fake stats.
+            Upload your resume. Paste a job description. ResDev AI tailors
+            a fully ATS-optimised resume — grounded only in <em>your</em>
+            real experience. No fluff, no invented stats.
         </div>
     </div>
     """
@@ -301,7 +319,7 @@ md(
 
 
 # ============================================================
-# TIP QUOTES (fills the side space, purely cosmetic / no backend)
+# TIP QUOTES
 # ============================================================
 
 TIPS = [
@@ -319,15 +337,18 @@ if "tip_idx" not in st.session_state:
 
 
 # ============================================================
-# LAYOUT -- 3 COLUMNS SO THE SIDE SPACE ISN'T EMPTY
+# LAYOUT — 3 COLUMNS
 # ============================================================
 
 col_left, col_center, col_right = st.columns([1, 2.3, 1], gap="medium")
 
 
-# ---------- CENTER: the actual form ----------
+# ─────────────────────────────────────────────────────────────
+# CENTER: main form
+# ─────────────────────────────────────────────────────────────
 with col_center:
 
+    # ── LEVEL 01 — Job Information ────────────────────────────
     with st.container(border=True):
         md(
             """
@@ -350,26 +371,82 @@ with col_center:
             key="job_desc_input",
         )
 
+    # ── LEVEL 02 — Master Resume Upload ───────────────────────
     with st.container(border=True):
         md(
             """
             <div class="level-tag">LEVEL 02</div>
-            <div class="level-title">Master Resume</div>
-            <div class="level-sub">Your saved master resume will be used automatically.</div>
+            <div class="level-title">Upload Your Master Resume</div>
+            <div class="level-sub">Your resume is the only source of truth — nothing is invented.</div>
             """
         )
 
-        # Show whether the canonical master resume is present — no uploader needed yet.
-        if _MASTER_RESUME_PATH.exists():
-            st.info(
-                "✅ **Master Resume loaded:** `data/master_resume.json`  \n"
-                "All resume generation uses this verified source of truth."
-            )
+        uploaded_file = st.file_uploader(
+            "Master Resume",
+            type=["pdf", "docx", "txt", "json"],
+            help=(
+                "Supported: PDF, DOCX, TXT, JSON.  \n"
+                "Legacy .doc files are not supported — please save as DOCX first."
+            ),
+            key="resume_uploader",
+            label_visibility="collapsed",
+        )
+
+        md(
+            '<div class="level-sub" style="margin-top:6px;">'
+            "Supported: <strong>PDF · DOCX · TXT · JSON</strong>"
+            " &nbsp;|&nbsp; Legacy .doc not supported"
+            "</div>"
+        )
+
+        # Parse on upload — cache per session so we don't re-parse on every rerun
+        master_resume_data = None
+        resume_ready = False
+
+        if uploaded_file is not None:
+            cache_key = f"parsed_resume_{uploaded_file.name}_{uploaded_file.size}"
+            if cache_key not in st.session_state:
+                try:
+                    parsed = parse_uploaded_resume(
+                        file_bytes=uploaded_file.getvalue(),
+                        filename=uploaded_file.name,
+                    )
+                    st.session_state[cache_key] = parsed
+                except ResumeParseError as _parse_err:
+                    st.error(f"⚠️ Resume upload failed:  \n{_parse_err}")
+                    st.session_state[cache_key] = None
+                except Exception as _unexpected:
+                    st.error(f"⚠️ Unexpected error reading resume: {_unexpected}")
+                    st.session_state[cache_key] = None
+
+            _cached = st.session_state.get(cache_key)
+            if _cached is not None:
+                master_resume_data = _cached
+                resume_ready = True
+                candidate_name = (
+                    _cached.get("candidate", {})
+                    .get("personal_info", {})
+                    .get("name", uploaded_file.name)
+                )
+                st.success(
+                    f"✅ **{uploaded_file.name}** loaded successfully  \n"
+                    f"Candidate: **{candidate_name}**"
+                )
         else:
-            st.error(
-                f"❌ Master resume not found at `{_MASTER_RESUME_PATH}`.  \n"
-                "Please ensure `data/master_resume.json` exists in the project root."
+            st.info(
+                "⬆️ Upload your master resume to continue.  \n"
+                "Supported formats: **PDF, DOCX, TXT, JSON**"
             )
+
+    # ── LEVEL 03 — Resume Template ────────────────────────────
+    with st.container(border=True):
+        md(
+            """
+            <div class="level-tag">LEVEL 03</div>
+            <div class="level-title">Resume Template</div>
+            <div class="level-sub">Choose an ATS-friendly layout for your generated resume.</div>
+            """
+        )
 
         resume_template = st.selectbox(
             "Resume template",
@@ -379,42 +456,27 @@ with col_center:
 
         if resume_template != "Professional":
             st.caption(
-                f"'{resume_template}' is a placeholder for now -- only "
-                f"'Professional' is wired up to the generation pipeline."
+                f"'{resume_template}' is a placeholder — only "
+                f"'Professional' is wired to the generation pipeline."
             )
 
-    # -------------------------------------------------------
-    # GENERATE BUTTON — wired to the optimization pipeline
-    # -------------------------------------------------------
+    # ── GENERATE BUTTON ───────────────────────────────────────
     if st.button("▶ Generate Resume", key="generate_btn"):
 
         if not job_title.strip():
-            st.error("Please enter a Job Title.")
+            st.error("⚠️ Please enter a Job Title.")
 
         elif not job_description.strip():
-            st.error("Please enter the Job Description.")
+            st.error("⚠️ Please enter the Job Description.")
 
-        elif not _MASTER_RESUME_PATH.exists():
+        elif not resume_ready or master_resume_data is None:
             st.error(
-                "Cannot generate: `data/master_resume.json` is missing.  \n"
-                f"Expected at: `{_MASTER_RESUME_PATH}`"
+                "⚠️ **No resume uploaded.**  \n"
+                "Please upload your master resume in LEVEL 02 before generating."
             )
 
         else:
-            # --------------------------------------------------
-            # Load master resume
-            # --------------------------------------------------
-            try:
-                with open(_MASTER_RESUME_PATH, "r", encoding="utf-8") as _f:
-                    master_resume_data = json.load(_f)
-            except Exception as _e:
-                st.error(f"Failed to load master resume JSON: {_e}")
-                st.exception(_e)
-                st.stop()
-
-            # --------------------------------------------------
-            # Run the optimization pipeline
-            # --------------------------------------------------
+            # ── Run the optimization pipeline ──────────────────
             st.markdown("---")
             st.markdown("### ⚙️ Optimization Pipeline")
 
@@ -423,7 +485,7 @@ with col_center:
             _iter_log = st.expander("📋 Iteration Log", expanded=False)
 
             def _on_progress(iteration: int, max_it: int, data: dict) -> None:
-                pct = int((iteration / max_it) * 80)  # reserve 20% for rendering
+                pct = int((iteration / max_it) * 80)
                 ats_tag = "✅ PASS" if data["ats_passed"] else "❌ FAIL"
                 qwen_tag = "✅ PASS" if data["qwen_passed"] else "⚠️ NEEDS REVISION"
                 ev_tag = "🔒 VERIFIED" if data["evidence_passed"] else "🚨 VIOLATION"
@@ -467,9 +529,7 @@ with col_center:
                 st.exception(_e)
                 st.stop()
 
-            # --------------------------------------------------
-            # Save final_resume.json
-            # --------------------------------------------------
+            # ── Save final_resume.json ──────────────────────────
             _progress_bar.progress(85, text="Saving final_resume.json…")
             _GENERATED_DIR.mkdir(parents=True, exist_ok=True)
             _json_out_path = _GENERATED_DIR / "final_resume.json"
@@ -483,9 +543,7 @@ with col_center:
                 st.exception(_e)
                 st.stop()
 
-            # --------------------------------------------------
-            # Render LaTeX + compile PDF
-            # --------------------------------------------------
+            # ── Render LaTeX + compile PDF ──────────────────────
             _progress_bar.progress(90, text="Rendering LaTeX & compiling PDF…")
             _tex_out_path = _GENERATED_DIR / "final_resume.tex"
             _pdf_out_path = _GENERATED_DIR / "final_resume.pdf"
@@ -506,9 +564,7 @@ with col_center:
             _progress_bar.progress(100, text="Done!")
             _status_area.empty()
 
-            # --------------------------------------------------
-            # Results summary
-            # --------------------------------------------------
+            # ── Results summary ─────────────────────────────────
             opt_status = optimization_result.get("status", "UNKNOWN")
             best_ats = optimization_result.get("best_ats_score", 0)
             best_qwen = optimization_result.get("best_qwen_score", 0)
@@ -550,9 +606,7 @@ with col_center:
                     + "\n".join(f"- {e}" for e in val["errors"][:5])
                 )
 
-            # --------------------------------------------------
-            # Download buttons
-            # --------------------------------------------------
+            # ── Download buttons ────────────────────────────────
             st.markdown("#### 📥 Downloads")
             _dl_cols = st.columns(2)
 
@@ -581,24 +635,35 @@ with col_center:
                             key="download_json",
                         )
 
-            # Honest audit of JD requirements that couldn't be met
+            # Honest audit
             unsupported = optimization_result.get("unsupported_jd_requirements", [])
             if unsupported:
                 with st.expander("ℹ️ Unsupported JD Requirements (honest audit)", expanded=False):
                     for _u in unsupported:
                         st.markdown(f"- {_u}")
 
-    md('<div class="footer">ResDev AI &middot; Evidence-grounded resume automation</div>')
+    # ── BRANDING FOOTER ────────────────────────────────────────
+    md(
+        """
+        <div class="footer">
+            ResDev AI &nbsp;&middot;&nbsp; Evidence-Grounded Resume Automation<br>
+            Built by <span style="color:#00f6ff;">Kanishk Surwade</span>
+        </div>
+        """
+    )
 
 
-# ---------- LEFT: quest progress + tip ticker ----------
+# ─────────────────────────────────────────────────────────────
+# LEFT: quest progress + tip ticker
+# ─────────────────────────────────────────────────────────────
 with col_left:
 
     with st.container(border=True):
+        _resume_uploaded = resume_ready if "resume_ready" in dir() else False
         steps_done = sum([
             bool(job_title.strip()) if job_title else False,
             bool(job_description.strip()) if job_description else False,
-            _MASTER_RESUME_PATH.exists(),  # master resume is always "ready" if file exists
+            bool(uploaded_file is not None),
         ])
         hearts = "".join(
             "❤️" if i < steps_done else "🖤" for i in range(3)
@@ -618,7 +683,9 @@ with col_left:
             st.rerun()
 
 
-# ---------- RIGHT: playable mini-game ----------
+# ─────────────────────────────────────────────────────────────
+# RIGHT: Neon Runner game (improved)
+# ─────────────────────────────────────────────────────────────
 with col_right:
 
     with st.container(border=True):
@@ -635,91 +702,222 @@ with col_right:
             <canvas id="game" width="230" height="280"
                 style="background:#0a0a14;border:2px solid #00f6ff;image-rendering:pixelated;display:block;margin:0 auto;">
             </canvas>
-            <div id="score" style="color:#ffd60a;font-family:monospace;font-size:12px;
-                text-align:center;margin-top:8px;">SCORE: 0</div>
+            <div id="scoreEl" style="color:#ffd60a;font-family:monospace;font-size:12px;
+                text-align:center;margin-top:8px;">SCORE: 0 &nbsp;|&nbsp; HI: 0</div>
+            <div id="msgEl" style="color:#00f6ff;font-family:monospace;font-size:10px;
+                text-align:center;height:14px;margin-top:2px;"></div>
             <script>
-            const canvas = document.getElementById('game');
-            const ctx = canvas.getContext('2d');
-            const scoreEl = document.getElementById('score');
-            const groundY = 250;
-            let player, obstacles, frame, score, gameOver;
+            (function(){
+                const canvas   = document.getElementById('game');
+                const ctx      = canvas.getContext('2d');
+                const scoreEl  = document.getElementById('scoreEl');
+                const msgEl    = document.getElementById('msgEl');
+                const W = canvas.width, H = canvas.height;
+                const GROUND   = H - 30;
+                const GRAVITY  = 0.72;
+                const JUMP_V   = -13;
+                const BASE_SPD = 4;
+                const SPD_INC  = 0.0015;   // speed increase per frame
+                const OBS_GAP_MIN = 55;    // minimum gap between obstacles (frames)
+                const OBS_GAP_MAX = 110;
+                const OBS_COLORS = ['#ffd60a','#ff2e9a','#39ff6a'];
 
-            function reset(){
-                player = {x:24, y:groundY-18, w:18, h:18, vy:0};
-                obstacles = [];
-                frame = 0;
-                score = 0;
-                gameOver = false;
-                requestAnimationFrame(loop);
-            }
+                let player, obstacles, frame, score, hiScore, gameOver, speed, nextObs, trail;
 
-            function jump(){
-                if(gameOver){ reset(); return; }
-                if(player.y >= groundY-18-1){ player.vy = -12.5; }
-            }
+                hiScore = 0;
 
-            document.addEventListener('keydown', function(e){
-                if(e.code === 'Space'){ e.preventDefault(); jump(); }
-            });
-            canvas.addEventListener('click', jump);
-
-            function loop(){
-                if(gameOver) return;
-                frame++;
-                ctx.fillStyle = '#0a0a14';
-                ctx.fillRect(0,0,canvas.width,canvas.height);
-
-                ctx.strokeStyle = 'rgba(0,246,255,0.08)';
-                for(let gx=0; gx<canvas.width; gx+=18){
-                    ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,canvas.height); ctx.stroke();
+                function reset() {
+                    player    = { x: 28, y: GROUND - 20, w: 18, h: 18, vy: 0, grounded: true };
+                    obstacles = [];
+                    trail     = [];
+                    frame     = 0;
+                    score     = 0;
+                    gameOver  = false;
+                    speed     = BASE_SPD;
+                    nextObs   = randomGap();
+                    msgEl.textContent = '';
+                    requestAnimationFrame(loop);
                 }
 
-                ctx.fillStyle = '#ff2e9a';
-                ctx.fillRect(0, groundY, canvas.width, 4);
-
-                player.vy += 0.75;
-                player.y += player.vy;
-                if(player.y > groundY-18){ player.y = groundY-18; player.vy = 0; }
-
-                ctx.fillStyle = '#00f6ff';
-                ctx.shadowColor = '#00f6ff';
-                ctx.shadowBlur = 10;
-                ctx.fillRect(player.x, player.y, player.w, player.h);
-                ctx.shadowBlur = 0;
-
-                if(frame % 65 === 0){
-                    obstacles.push({x:canvas.width, y:groundY-18, w:14, h:18});
+                function randomGap() {
+                    return OBS_GAP_MIN + Math.floor(Math.random() * (OBS_GAP_MAX - OBS_GAP_MIN));
                 }
-                ctx.fillStyle = '#ffd60a';
-                obstacles.forEach(function(o){ o.x -= 4; ctx.fillRect(o.x, o.y, o.w, o.h); });
-                obstacles = obstacles.filter(function(o){ return o.x + o.w > 0; });
 
-                obstacles.forEach(function(o){
-                    if(player.x < o.x+o.w && player.x+player.w > o.x &&
-                       player.y < o.y+o.h && player.y+player.h > o.y){
-                        gameOver = true;
+                function randomObstacle() {
+                    // Vary height between 12 and 30, width between 10 and 20
+                    const h = 12 + Math.floor(Math.random() * 19);
+                    const w = 10 + Math.floor(Math.random() * 11);
+                    // Occasionally a double obstacle (two stacked)
+                    const isDouble = Math.random() < 0.18;
+                    const color = OBS_COLORS[Math.floor(Math.random() * OBS_COLORS.length)];
+                    const obs = [{ x: W, y: GROUND - h, w, h, color }];
+                    if (isDouble) {
+                        const h2 = 10 + Math.floor(Math.random() * 10);
+                        obs.push({ x: W + w + 4, y: GROUND - h2, w: w - 2, h: h2, color });
                     }
-                });
-
-                if(!gameOver){ score++; }
-                scoreEl.textContent = 'SCORE: ' + score + (gameOver ? '  ·  GAME OVER' : '');
-
-                if(gameOver){
-                    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                    ctx.fillRect(0,0,canvas.width,canvas.height);
-                    ctx.fillStyle = '#ff2e9a';
-                    ctx.font = '14px monospace';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
-                    ctx.font = '10px monospace';
-                    ctx.fillStyle = '#00f6ff';
-                    ctx.fillText('click to retry', canvas.width/2, canvas.height/2+16);
-                    return;
+                    return obs;
                 }
-                requestAnimationFrame(loop);
-            }
-            reset();
+
+                function jump() {
+                    if (gameOver) { reset(); return; }
+                    if (player.grounded) {
+                        player.vy = JUMP_V;
+                        player.grounded = false;
+                    }
+                }
+
+                document.addEventListener('keydown', function(e) {
+                    if (e.code === 'Space') { e.preventDefault(); jump(); }
+                });
+                canvas.addEventListener('click', jump);
+
+                function drawGrid() {
+                    ctx.strokeStyle = 'rgba(0,246,255,0.05)';
+                    ctx.lineWidth = 1;
+                    for (let gx = (frame * speed * 0.3) % 18; gx < W; gx += 18) {
+                        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+                    }
+                }
+
+                function drawGround() {
+                    // Scrolling ground line
+                    const goff = (frame * speed * 0.5) % 18;
+                    ctx.strokeStyle = '#ff2e9a';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(0, GROUND); ctx.lineTo(W, GROUND); ctx.stroke();
+                    ctx.strokeStyle = 'rgba(255,46,154,0.25)';
+                    ctx.lineWidth = 1;
+                    for (let tx = -goff; tx < W; tx += 18) {
+                        ctx.beginPath(); ctx.moveTo(tx, GROUND); ctx.lineTo(tx + 9, GROUND + 6); ctx.stroke();
+                    }
+                }
+
+                function drawPlayer() {
+                    // Ghost trail
+                    trail.push({ x: player.x, y: player.y, alpha: 0.35 });
+                    if (trail.length > 6) trail.shift();
+                    trail.forEach(function(t, i) {
+                        ctx.globalAlpha = t.alpha * (i / trail.length);
+                        ctx.fillStyle = '#00f6ff';
+                        ctx.fillRect(t.x, t.y, player.w, player.h);
+                    });
+                    ctx.globalAlpha = 1;
+
+                    ctx.fillStyle = '#00f6ff';
+                    ctx.shadowColor = '#00f6ff';
+                    ctx.shadowBlur = 12;
+                    ctx.fillRect(player.x, player.y, player.w, player.h);
+                    ctx.shadowBlur = 0;
+                }
+
+                function drawObstacles() {
+                    obstacles.forEach(function(o) {
+                        ctx.fillStyle = o.color;
+                        ctx.shadowColor = o.color;
+                        ctx.shadowBlur = 8;
+                        ctx.fillRect(o.x, o.y, o.w, o.h);
+                        ctx.shadowBlur = 0;
+                    });
+                }
+
+                function collides(a, b) {
+                    const pad = 3; // small forgiveness
+                    return (
+                        a.x + pad < b.x + b.w &&
+                        a.x + a.w - pad > b.x &&
+                        a.y + pad < b.y + b.h &&
+                        a.y + a.h - pad > b.y
+                    );
+                }
+
+                function getDifficultyLabel() {
+                    if (speed < 5.5) return 'EASY';
+                    if (speed < 7)   return 'MED';
+                    if (speed < 9)   return 'HARD';
+                    return 'INSANE';
+                }
+
+                function loop() {
+                    if (gameOver) return;
+
+                    frame++;
+                    speed = BASE_SPD + frame * SPD_INC;
+                    score = Math.floor(frame / 6);
+
+                    // clear
+                    ctx.fillStyle = '#0a0a14';
+                    ctx.fillRect(0, 0, W, H);
+
+                    drawGrid();
+                    drawGround();
+
+                    // spawn obstacles
+                    if (frame >= nextObs) {
+                        randomObstacle().forEach(function(o) { obstacles.push(o); });
+                        nextObs = frame + randomGap();
+                    }
+
+                    // move obstacles
+                    obstacles.forEach(function(o) { o.x -= speed; });
+                    obstacles = obstacles.filter(function(o) { return o.x + o.w > 0; });
+
+                    // physics
+                    player.vy += GRAVITY;
+                    player.y  += player.vy;
+                    if (player.y >= GROUND - player.h) {
+                        player.y = GROUND - player.h;
+                        player.vy = 0;
+                        player.grounded = true;
+                    }
+
+                    drawObstacles();
+                    drawPlayer();
+
+                    // HUD
+                    ctx.fillStyle = '#ffd60a';
+                    ctx.font = '9px monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(getDifficultyLabel(), 4, 12);
+                    ctx.textAlign = 'right';
+                    ctx.fillText('SPD x' + speed.toFixed(1), W - 4, 12);
+
+                    // collision
+                    for (let i = 0; i < obstacles.length; i++) {
+                        if (collides(player, obstacles[i])) {
+                            gameOver = true;
+                            if (score > hiScore) hiScore = score;
+                            break;
+                        }
+                    }
+
+                    scoreEl.textContent = 'SCORE: ' + score + '  |  HI: ' + hiScore;
+
+                    if (gameOver) {
+                        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+                        ctx.fillRect(0, 0, W, H);
+                        ctx.fillStyle = '#ff2e9a';
+                        ctx.font = 'bold 15px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.shadowColor = '#ff2e9a';
+                        ctx.shadowBlur = 12;
+                        ctx.fillText('GAME OVER', W/2, H/2 - 12);
+                        ctx.shadowBlur = 0;
+                        ctx.font = '11px monospace';
+                        ctx.fillStyle = '#ffd60a';
+                        ctx.fillText('SCORE: ' + score, W/2, H/2 + 6);
+                        ctx.font = '9px monospace';
+                        ctx.fillStyle = '#00f6ff';
+                        ctx.fillText('click or SPACE to retry', W/2, H/2 + 22);
+                        msgEl.textContent = score > 80 ? '★ GREAT RUN! ★' : (score > 40 ? 'Nice try!' : 'Keep going!');
+                        return;
+                    }
+
+                    requestAnimationFrame(loop);
+                }
+
+                reset();
+            })();
             </script>
             """,
-            height=330,
+            height=345,
         )
