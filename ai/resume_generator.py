@@ -1,15 +1,18 @@
 import json
-import re
 import os
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
 from google import genai
 
-try:
-    from ai.gemini_config import get_gemini_api_key
-except ImportError:
-    from gemini_config import get_gemini_api_key
+# Ensure project root is on sys.path for direct script execution
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+from ai.gemini_config import get_gemini_api_key
 
 DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "gemini-3.5-flash-lite")
 DEFAULT_TIMEOUT_SECONDS = 600

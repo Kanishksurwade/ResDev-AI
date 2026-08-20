@@ -1,7 +1,8 @@
 # ResDev AI Dependencies
-# Approved Tech Stack: Python, Streamlit, Ollama, JSON, SQLite, LaTeX, pytest
+# Approved Tech Stack: Python, Streamlit, Gemini, JSON, SQLite, LaTeX, pytest
 
 streamlit>=1.30.0
+google-genai>=0.1.0
 requests>=2.31.0
 jinja2>=3.1.2
 pytest>=8.0.0

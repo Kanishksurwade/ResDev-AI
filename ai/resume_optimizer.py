@@ -35,48 +35,26 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-try:
-    from ai.jd_analyzer import analyze_job_description
-    from ai.resume_matcher import match_resume_to_jd
-    from ai.resume_generator import generate_tailored_resume
-    from ai.resume_evaluator import evaluate_resume
-    from ai.ats_analyzer import analyze_ats_compatibility
-    from ai.multi_ats_validator import validate_multi_ats
-    from ai.evidence_validator import validate_resume_evidence
-    from ai.edit_plan import (
-        build_requirement_matrix,
-        get_unmet_valid_gaps,
-        get_unsupported_gaps,
-        generate_targeted_edit_plan,
-        apply_edit_plan,
-    )
-    from ai.optimization_guard import OptimizationGuard
-    from ai.final_resume_validator import (
-        build_final_resume,
-        validate_final_resume,
-        save_final_resume,
-    )
-except ImportError:
-    from jd_analyzer import analyze_job_description
-    from resume_matcher import match_resume_to_jd
-    from resume_generator import generate_tailored_resume
-    from resume_evaluator import evaluate_resume
-    from ats_analyzer import analyze_ats_compatibility
-    from multi_ats_validator import validate_multi_ats
-    from evidence_validator import validate_resume_evidence
-    from edit_plan import (
-        build_requirement_matrix,
-        get_unmet_valid_gaps,
-        get_unsupported_gaps,
-        generate_targeted_edit_plan,
-        apply_edit_plan,
-    )
-    from optimization_guard import OptimizationGuard
-    from final_resume_validator import (
-        build_final_resume,
-        validate_final_resume,
-        save_final_resume,
-    )
+from ai.jd_analyzer import analyze_job_description
+from ai.resume_matcher import match_resume_to_jd
+from ai.resume_generator import generate_tailored_resume
+from ai.resume_evaluator import evaluate_resume
+from ai.ats_analyzer import analyze_ats_compatibility
+from ai.multi_ats_validator import validate_multi_ats
+from ai.evidence_validator import validate_resume_evidence
+from ai.edit_plan import (
+    build_requirement_matrix,
+    get_unmet_valid_gaps,
+    get_unsupported_gaps,
+    generate_targeted_edit_plan,
+    apply_edit_plan,
+)
+from ai.optimization_guard import OptimizationGuard
+from ai.final_resume_validator import (
+    build_final_resume,
+    validate_final_resume,
+    save_final_resume,
+)
 
 DEFAULT_TARGET_SCORE = 85
 DEFAULT_MAX_ITERATIONS = 5

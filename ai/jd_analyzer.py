@@ -1,16 +1,18 @@
 import json
-import re
 import os
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
 from google import genai
 
+# Ensure project root is on sys.path for direct script execution
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
-try:
-    from ai.gemini_config import get_gemini_api_key
-except ImportError:
-    from gemini_config import get_gemini_api_key
+from ai.gemini_config import get_gemini_api_key
 
 
 DEFAULT_MODEL = os.environ.get(
