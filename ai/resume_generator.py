@@ -6,6 +6,11 @@ from typing import Any
 
 from google import genai
 
+try:
+    from ai.gemini_config import get_gemini_api_key
+except ImportError:
+    from gemini_config import get_gemini_api_key
+
 DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "gemini-3.5-flash-lite")
 DEFAULT_TIMEOUT_SECONDS = 600
 
@@ -134,13 +139,7 @@ def call_gemini(
     """
     Send the prompt to Gemini and return the model's text response.
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
-
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY is not set. "
-            "Please configure your Gemini API key."
-        )
+    api_key = get_gemini_api_key()
 
     try:
         client = genai.Client(api_key=api_key)
