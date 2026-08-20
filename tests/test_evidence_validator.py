@@ -280,3 +280,56 @@ class TestEvidenceValidator:
         res = validate_resume_evidence({}, master_resume)
         assert res["passed"] is True
         assert res["violations"] == []
+
+    def test_uploaded_text_resume_evidence_validation(self):
+        """Uploaded plain text resume with _raw_text must validate grounded facts."""
+        raw_text = (
+            "Kanishk Surwade\n"
+            "Innodata Inc. - AI & LLM Analyst (Dec 2025 - Jul 2026)\n"
+            "- Evaluated multimodal LLM responses on 1,000+ prompt pairs using CVAT, Python, and Google Cloud Platform.\n"
+            "Education: JSPM Rajarshi Shahu College of Engineering - B.Tech in Automation and Robotics\n"
+            "Certifications: Career Essentials in Generative AI - Microsoft\n"
+        )
+        uploaded_master = {
+            "candidate": {
+                "personal_info": {"name": "Kanishk Surwade"},
+                "professional_identity": {"profile": raw_text},
+            },
+            "_raw_text": raw_text,
+        }
+        candidate = {
+            "personal_info": {"name": "Kanishk Surwade", "target_title": "Data Annotator"},
+            "skills": {
+                "technical_skills": ["Multimodal AI Annotation", "Data Annotation"],
+                "tools_and_technologies": ["CVAT", "Google Cloud Platform (GCP)", "Python"],
+            },
+            "experience": [
+                {
+                    "company": "Innodata Inc.",
+                    "role": "AI & LLM Analyst",
+                    "bullets": ["Evaluated multimodal LLM responses on 1,000+ prompt pairs using CVAT."],
+                }
+            ],
+            "education": [{"degree": "B.Tech in Automation and Robotics", "institution": "JSPM Rajarshi Shahu College of Engineering"}],
+            "certifications": [{"name": "Career Essentials in Generative AI", "issuer": "Microsoft"}],
+        }
+        res = validate_resume_evidence(candidate, uploaded_master)
+        assert res["passed"] is True
+        assert res["violations"] == []
+
+    def test_uploaded_text_resume_rejects_hallucinated_facts(self):
+        """Uploaded plain text resume must still strictly reject completely fabricated facts."""
+        raw_text = "Jane Doe\nAcme Corp - Developer\n- Built web tools in Python.\n"
+        uploaded_master = {
+            "candidate": {"personal_info": {"name": "Jane Doe"}, "professional_identity": {"profile": raw_text}},
+            "_raw_text": raw_text,
+        }
+        hallucinated_candidate = {
+            "personal_info": {"name": "Jane Doe", "target_title": "Data Annotator"},
+            "skills": {"tools_and_technologies": ["Scale AI", "Labelbox"]},
+            "experience": [{"company": "Google LLC", "bullets": ["Managed $10M budget on 5,000,000 samples."]}],
+            "education": [{"degree": "Ph.D. in Neuroscience", "institution": "Harvard University"}],
+        }
+        res = validate_resume_evidence(hallucinated_candidate, uploaded_master)
+        assert res["passed"] is False
+        assert res["violation_count"] >= 4

@@ -1,14 +1,18 @@
 import json
-import re
 import os
-import urllib.error
-import urllib.request
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
-DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "qwen3.5:4b")
-DEFAULT_OLLAMA_URL = "http://localhost:11434/api/generate"
-DEFAULT_TIMEOUT_SECONDS = 600
+# Ensure project root is on sys.path for direct script execution
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+from ai.gemini_config import call_gemini_with_retry, DEFAULT_MODEL, DEFAULT_TIMEOUT
+
+DEFAULT_TIMEOUT_SECONDS = DEFAULT_TIMEOUT
 DEFAULT_TARGET_SCORE = 85
 
 # Expected dimensions in evaluation rubric
@@ -101,45 +105,20 @@ def load_prompt_template(prompt_path: str | Path | None = None) -> str:
     return FALLBACK_PROMPT_TEMPLATE
 
 
-def call_ollama(
+def call_gemini(
     prompt: str,
     model: str = DEFAULT_MODEL,
-    api_url: str = DEFAULT_OLLAMA_URL,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> str:
     """
-    Send prompt to the local Ollama API and return the raw model text response.
+    Send the evaluation prompt to Gemini and return the raw text response.
+    Uses call_gemini_with_retry from gemini_config for timeout + retry handling.
     """
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "think": False,
-        "format": "json",
-        "options": {
-            "temperature": 0.1,
-            "num_predict": 4096,
-        },
-    }
-
-    req = urllib.request.Request(
-        api_url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+    return call_gemini_with_retry(
+        prompt=prompt,
+        model=model,
+        timeout=timeout,
     )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            body = response.read().decode("utf-8")
-            data = json.loads(body)
-            return data.get("response", "")
-    except urllib.error.URLError as error:
-        raise RuntimeError(
-            f"Failed to connect to Ollama at {api_url}. "
-            f"Ensure Ollama is running locally and model '{model}' is available. Details: {error}"
-        ) from error
-    except Exception as error:
-        raise RuntimeError(f"Error communicating with Ollama API: {error}") from error
 
 
 def parse_json_response(raw_text: str) -> dict[str, Any]:
@@ -323,21 +302,21 @@ def evaluate_resume(
     structured_jd: dict[str, Any] | str | Path,
     target_score: int = DEFAULT_TARGET_SCORE,
     model: str = DEFAULT_MODEL,
-    ollama_url: str = DEFAULT_OLLAMA_URL,
     prompt_path: str | Path | None = None,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    # Legacy compatibility: ollama_url kwarg silently ignored
+    **_kwargs: object,
 ) -> dict[str, Any]:
     """
-    Evaluate a tailored resume against a target Job Description using local Ollama.
+    Evaluate a tailored resume against a target Job Description using Gemini.
 
     Parameters:
         tailored_resume: Tailored resume dict or path to JSON file / JSON string.
         structured_jd: Structured JD dict or path to JSON file / JSON string.
         target_score: Minimum overall score required to pass (default: 85).
-        model: Ollama model name (default: "qwen3.5:4b").
-        ollama_url: Ollama API endpoint.
+        model: Gemini model name (default: "gemini-3.5-flash-lite").
         prompt_path: Optional custom prompt template path.
-        timeout: Timeout in seconds.
+        timeout: Per-request timeout in seconds.
 
     Returns:
         Structured evaluation dictionary conforming to schema.
@@ -373,11 +352,10 @@ def evaluate_resume(
     prompt = template.replace("{structured_jd_json}", structured_jd_str)
     prompt = prompt.replace("{tailored_resume_json}", tailored_resume_str)
 
-    # 4. Call Ollama
-    raw_response = call_ollama(
+    # 4. Call Gemini
+    raw_response = call_gemini(
         prompt=prompt,
         model=model,
-        api_url=ollama_url,
         timeout=timeout,
     )
 
@@ -555,7 +533,7 @@ if __name__ == "__main__":
     print("=" * 70)
     print("Candidate:", sample_tailored_resume.get("personal_info", {}).get("name"))
     print("Target Role:", target_structured_jd.get("job_title"))
-    print("Running quality evaluation with local Ollama (qwen3.5:4b)...")
+    print("Running quality evaluation with Gemini (gemini-3.5-flash-lite)...")
     print("-" * 70)
 
     evaluation = evaluate_resume(

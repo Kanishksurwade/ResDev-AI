@@ -70,6 +70,25 @@ def extract_master_evidence(master_resume: dict[str, Any]) -> dict[str, Any]:
         "verifiable_texts": [],
     }
 
+    # 0. Raw text from upload or full profile string
+    if master_resume.get("_raw_text"):
+        raw = str(master_resume["_raw_text"])
+        evidence["verifiable_texts"].append(raw)
+        for m in _extract_numbers_and_metrics(raw):
+            evidence["metrics"].add(m)
+
+    if master_resume.get("profile"):
+        p_text = str(master_resume["profile"])
+        evidence["verifiable_texts"].append(p_text)
+        for m in _extract_numbers_and_metrics(p_text):
+            evidence["metrics"].add(m)
+
+    if master_resume.get("summary"):
+        s_text = str(master_resume["summary"])
+        evidence["verifiable_texts"].append(s_text)
+        for m in _extract_numbers_and_metrics(s_text):
+            evidence["metrics"].add(m)
+
     # 1. Candidate Personal Info
     cand = master_resume.get("candidate", {})
     if isinstance(cand, dict):
@@ -89,7 +108,10 @@ def extract_master_evidence(master_resume: dict[str, Any]) -> dict[str, Any]:
             if prof_id.get("current_profile"):
                 evidence["roles"].add(_normalize_token(str(prof_id["current_profile"])))
             if prof_id.get("profile"):
-                evidence["verifiable_texts"].append(str(prof_id["profile"]))
+                p_text = str(prof_id["profile"])
+                evidence["verifiable_texts"].append(p_text)
+                for m in _extract_numbers_and_metrics(p_text):
+                    evidence["metrics"].add(m)
 
     # Also handle flat personal_info if structured resume format passed
     flat_p_info = master_resume.get("personal_info", {})
@@ -223,7 +245,7 @@ def extract_master_evidence(master_resume: dict[str, Any]) -> dict[str, Any]:
 # Standard well-known synonym mappings / parent-child tool concepts
 _TOOL_SYNONYMS: dict[str, list[str]] = {
     "google cloud": ["google cloud platform", "google cloud platform gcp", "gcp"],
-    "google cloud platform": ["google cloud", "gcp"],
+    "google cloud platform": ["google cloud", "gcp", "google cloud platform gcp"],
     "gcp": ["google cloud platform", "google cloud"],
     "cvat": ["computer vision annotation tool", "cvat", "annotation tools", "data labeling platforms"],
     "power bi": ["powerbi", "microsoft power bi"],
@@ -236,7 +258,11 @@ _TOOL_SYNONYMS: dict[str, list[str]] = {
 }
 
 
-def _is_tool_supported(tool: str, allowed_tools: set[str]) -> bool:
+def _is_tool_supported(
+    tool: str,
+    allowed_tools: set[str],
+    verifiable_texts: list[str] | None = None,
+) -> bool:
     """Check if a tool or platform is supported by the Master Resume evidence."""
     norm_tool = _normalize_token(tool)
     if not norm_tool:
@@ -260,22 +286,54 @@ def _is_tool_supported(tool: str, allowed_tools: set[str]) -> bool:
             if syn in allowed or allowed in syn:
                 return True
 
+    # 4. Check verifiable_texts from uploaded resume
+    if verifiable_texts:
+        for vt in verifiable_texts:
+            norm_vt = _normalize_token(vt)
+            if norm_tool in norm_vt:
+                return True
+            for syn in synonyms:
+                if syn in norm_vt:
+                    return True
+            tool_tokens = [t for t in norm_tool.split() if len(t) > 3]
+            if tool_tokens and all(t in norm_vt for t in tool_tokens):
+                return True
+
     return False
 
 
-def _is_employer_supported(employer: str, allowed_employers: set[str]) -> bool:
+def _is_employer_supported(
+    employer: str,
+    allowed_employers: set[str],
+    verifiable_texts: list[str] | None = None,
+) -> bool:
     """Check if an employer name is grounded in Master Resume evidence."""
     norm_emp = _normalize_token(employer)
     if not norm_emp:
         return True
 
     for allowed in allowed_employers:
-        if norm_emp in allowed or allowed in norm_emp:
+        if norm_emp == allowed or norm_emp in allowed or allowed in norm_emp:
             return True
+
+    if verifiable_texts:
+        for vt in verifiable_texts:
+            norm_vt = _normalize_token(vt)
+            if norm_emp in norm_vt:
+                return True
+            # Match distinctive corporate name tokens (e.g. 'innodata' from 'Innodata Inc.')
+            for token in norm_emp.split():
+                if len(token) > 3 and token not in ("inc", "corp", "ltd", "llc", "company", "technologies", "services", "solutions", "group"):
+                    if token in norm_vt:
+                        return True
     return False
 
 
-def _is_institution_supported(inst: str, allowed_institutions: set[str]) -> bool:
+def _is_institution_supported(
+    inst: str,
+    allowed_institutions: set[str],
+    verifiable_texts: list[str] | None = None,
+) -> bool:
     """Check if an educational institution is grounded in Master Resume evidence."""
     norm_inst = _normalize_token(inst)
     if not norm_inst:
@@ -284,10 +342,23 @@ def _is_institution_supported(inst: str, allowed_institutions: set[str]) -> bool
     for allowed in allowed_institutions:
         if norm_inst in allowed or allowed in norm_inst:
             return True
+
+    if verifiable_texts:
+        for vt in verifiable_texts:
+            norm_vt = _normalize_token(vt)
+            if norm_inst in norm_vt:
+                return True
+            inst_tokens = [t for t in norm_inst.split() if len(t) > 3 and t not in ("university", "college", "institute", "school", "engineering", "technology", "management", "science")]
+            if inst_tokens and any(t in norm_vt for t in inst_tokens):
+                return True
     return False
 
 
-def _is_degree_supported(degree: str, allowed_degrees: set[str]) -> bool:
+def _is_degree_supported(
+    degree: str,
+    allowed_degrees: set[str],
+    verifiable_texts: list[str] | None = None,
+) -> bool:
     """Check if a degree is grounded in Master Resume evidence."""
     norm_deg = _normalize_token(degree)
     if not norm_deg:
@@ -299,12 +370,25 @@ def _is_degree_supported(degree: str, allowed_degrees: set[str]) -> bool:
         # Check major / degree tokens
         deg_tokens = set(norm_deg.split())
         allowed_tokens = set(allowed.split())
-        if deg_tokens and (len(deg_tokens & allowed_tokens) / len(deg_tokens)) >= 0.6:
+        if deg_tokens and (len(deg_tokens & allowed_tokens) / len(deg_tokens)) >= 0.5:
             return True
+
+    if verifiable_texts:
+        for vt in verifiable_texts:
+            norm_vt = _normalize_token(vt)
+            if norm_deg in norm_vt:
+                return True
+            deg_tokens = [t for t in norm_deg.split() if len(t) > 3 and t not in ("bachelor", "master", "degree", "science", "arts", "engineering")]
+            if deg_tokens and any(t in norm_vt for t in deg_tokens):
+                return True
     return False
 
 
-def _is_cert_supported(cert_name: str, allowed_certs: set[str]) -> bool:
+def _is_cert_supported(
+    cert_name: str,
+    allowed_certs: set[str],
+    verifiable_texts: list[str] | None = None,
+) -> bool:
     """Check if a certification is grounded in Master Resume evidence."""
     norm_cert = _normalize_token(cert_name)
     if not norm_cert:
@@ -315,8 +399,17 @@ def _is_cert_supported(cert_name: str, allowed_certs: set[str]) -> bool:
             return True
         cert_tokens = set(norm_cert.split())
         allowed_tokens = set(allowed.split())
-        if cert_tokens and (len(cert_tokens & allowed_tokens) / len(cert_tokens)) >= 0.6:
+        if cert_tokens and (len(cert_tokens & allowed_tokens) / len(cert_tokens)) >= 0.5:
             return True
+
+    if verifiable_texts:
+        for vt in verifiable_texts:
+            norm_vt = _normalize_token(vt)
+            if norm_cert in norm_vt:
+                return True
+            cert_tokens = [t for t in norm_cert.split() if len(t) > 3 and t not in ("certificate", "certification", "certified", "essential", "essentials", "learning")]
+            if cert_tokens and any(t in norm_vt for t in cert_tokens):
+                return True
     return False
 
 
@@ -374,6 +467,7 @@ def validate_resume_evidence(
         | master_evidence["skills"]
         | master_evidence["roles"]
     )
+    v_texts = master_evidence.get("verifiable_texts", [])
 
     # 3. Check Employers in Experience
     cand_experience = candidate_dict.get("experience", [])
@@ -382,7 +476,7 @@ def validate_resume_evidence(
             if not isinstance(exp, dict):
                 continue
             company = str(exp.get("company", "")).strip()
-            if company and not _is_employer_supported(company, master_evidence["employers"]):
+            if company and not _is_employer_supported(company, master_evidence["employers"], v_texts):
                 v = {
                     "type": "unsupported_employer",
                     "value": company,
@@ -402,7 +496,7 @@ def validate_resume_evidence(
                     if m in ("1", "2", "3", "4", "5") or m in master_evidence["metrics"]:
                         continue
                     # Check if metric was in master evidence texts
-                    matched_in_master = any(m in _normalize_token(t) for t in master_evidence["verifiable_texts"])
+                    matched_in_master = any(m in _normalize_token(t) for t in v_texts)
                     if not matched_in_master:
                         # Flag suspicious high metric additions (e.g. 10,000, 98%, $5M)
                         if any(char in m for char in ("%", "$", "+", "k", "m")) or len(re.sub(r"\D", "", m)) >= 4:
@@ -424,7 +518,7 @@ def validate_resume_evidence(
                 tool_str = str(tool).strip()
                 if not tool_str:
                     continue
-                if not _is_tool_supported(tool_str, master_evidence["tools_and_technologies"]):
+                if not _is_tool_supported(tool_str, master_evidence["tools_and_technologies"], v_texts):
                     v = {
                         "type": "unsupported_tool",
                         "value": tool_str,
@@ -447,8 +541,9 @@ def validate_resume_evidence(
                 norm_sk = _normalize_token(skill_str)
                 is_supported = (
                     norm_sk in all_allowed_terms
-                    or _is_tool_supported(skill_str, master_evidence["tools_and_technologies"])
+                    or _is_tool_supported(skill_str, master_evidence["tools_and_technologies"], v_texts)
                     or any(norm_sk in t or t in norm_sk for t in all_allowed_terms)
+                    or any(norm_sk in _normalize_token(vt) for vt in v_texts)
                 )
                 if not is_supported:
                     # Check if well-known completely alien tools appear in technical skills
@@ -479,7 +574,7 @@ def validate_resume_evidence(
                 continue
             inst = str(edu.get("institution", "")).strip()
             degree = str(edu.get("degree", "")).strip()
-            if inst and not _is_institution_supported(inst, master_evidence["institutions"]):
+            if inst and not _is_institution_supported(inst, master_evidence["institutions"], v_texts):
                 v = {
                     "type": "unsupported_institution",
                     "value": inst,
@@ -488,7 +583,7 @@ def validate_resume_evidence(
                 }
                 violations.append(v)
                 unsupported_changes.append(f"Invented institution: {inst}")
-            if degree and not _is_degree_supported(degree, master_evidence["degrees"]):
+            if degree and not _is_degree_supported(degree, master_evidence["degrees"], v_texts):
                 v = {
                     "type": "unsupported_degree",
                     "value": degree,
@@ -504,7 +599,7 @@ def validate_resume_evidence(
         for c in cand_certs:
             cert_name = c.get("name", "") if isinstance(c, dict) else str(c)
             cert_name = str(cert_name).strip()
-            if cert_name and not _is_cert_supported(cert_name, master_evidence["certifications"]):
+            if cert_name and not _is_cert_supported(cert_name, master_evidence["certifications"], v_texts):
                 v = {
                     "type": "unsupported_certification",
                     "value": cert_name,

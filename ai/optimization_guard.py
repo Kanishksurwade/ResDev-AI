@@ -23,13 +23,22 @@ class OptimizationGuard:
         self.target_score = target_score
         self.best_candidate: dict[str, Any] | None = None
         self.best_iteration: int = 0
-        self.best_ats_score: int = -1
-        self.best_qwen_score: int = -1
-        self.best_combined_score: float = -1.0
-        self.best_multi_passed: int = -1
+        self.best_ats_score: int = 0
+        self.best_qwen_score: int = 0
+        self.best_combined_score: float = 0.0
+        self.best_multi_passed: int = 0
         self.best_multi_total: int = 6
         self.best_evaluations: dict[str, Any] = {}
         self.history: list[dict[str, Any]] = []
+        # Fallback candidate tracking (in case all iterations are rejected on hard gates)
+        self.fallback_candidate: dict[str, Any] | None = None
+        self.fallback_iteration: int = 0
+        self.fallback_ats_score: int = 0
+        self.fallback_qwen_score: int = 0
+        self.fallback_combined_score: float = 0.0
+        self.fallback_multi_passed: int = 0
+        self.fallback_multi_total: int = 6
+        self.fallback_evaluations: dict[str, Any] = {}
 
     def evaluate_candidate(
         self,
@@ -63,6 +72,25 @@ class OptimizationGuard:
         multi_passed = multi_summary.get("passed", 0) + multi_summary.get("warned", 0)
         multi_total = multi_summary.get("total_platforms", 6)
         multi_failed = multi_summary.get("failed", 0)
+
+        # Always maintain a valid fallback candidate from the latest / best iteration
+        if (
+            self.fallback_candidate is None
+            or combined_score >= self.fallback_combined_score
+        ):
+            self.fallback_candidate = copy.deepcopy(candidate_resume)
+            self.fallback_iteration = iteration
+            self.fallback_ats_score = ats_score
+            self.fallback_qwen_score = qwen_score
+            self.fallback_combined_score = combined_score
+            self.fallback_multi_passed = multi_passed
+            self.fallback_multi_total = multi_total
+            self.fallback_evaluations = {
+                "ats": copy.deepcopy(ats_eval),
+                "multi_ats": copy.deepcopy(multi_ats_eval),
+                "qwen": copy.deepcopy(qwen_eval),
+                "evidence": copy.deepcopy(evidence_eval),
+            }
 
         # ---------------------------------------------------------
         # HARD GATE 1: Factual Integrity & Evidence Validation
@@ -229,16 +257,39 @@ class OptimizationGuard:
 
     def get_final_result(self) -> dict[str, Any]:
         """Return structured summary of the protected optimization outcome."""
+        if self.best_candidate is not None:
+            return {
+                "best_iteration": self.best_iteration,
+                "best_ats_score": max(0, self.best_ats_score),
+                "best_qwen_score": max(0, self.best_qwen_score),
+                "best_combined_score": max(0.0, self.best_combined_score),
+                "best_multi_ats_passed": max(0, self.best_multi_passed),
+                "best_multi_ats_total": self.best_multi_total,
+                "ats_passed": bool(self.best_ats_score >= self.target_score),
+                "qwen_passed": bool(self.best_qwen_score >= self.target_score),
+                "best_resume": self.best_candidate,
+                "best_evaluations": self.best_evaluations,
+                "decision_history": self.history,
+            }
+
+        # Fallback to the best evaluated candidate across iterations
+        fallback_iter = self.fallback_iteration or (self.history[0]["iteration"] if self.history else 1)
+        fallback_ats = self.fallback_ats_score or (self.history[0]["ats_score"] if self.history else 0)
+        fallback_qwen = self.fallback_qwen_score or (self.history[0]["qwen_score"] if self.history else 0)
+        fallback_combined = self.fallback_combined_score or (self.history[0]["combined_score"] if self.history else 0.0)
+        fallback_multi = self.fallback_multi_passed or (self.history[0]["multi_ats_passed"] if self.history else 0)
+        fallback_multi_total = self.fallback_multi_total or 6
+
         return {
-            "best_iteration": self.best_iteration,
-            "best_ats_score": self.best_ats_score,
-            "best_qwen_score": self.best_qwen_score,
-            "best_combined_score": self.best_combined_score,
-            "best_multi_ats_passed": self.best_multi_passed,
-            "best_multi_ats_total": self.best_multi_total,
-            "ats_passed": bool(self.best_ats_score >= self.target_score),
-            "qwen_passed": bool(self.best_qwen_score >= self.target_score),
-            "best_resume": self.best_candidate or {},
-            "best_evaluations": self.best_evaluations,
+            "best_iteration": fallback_iter,
+            "best_ats_score": max(0, fallback_ats),
+            "best_qwen_score": max(0, fallback_qwen),
+            "best_combined_score": max(0.0, fallback_combined),
+            "best_multi_ats_passed": max(0, fallback_multi),
+            "best_multi_ats_total": fallback_multi_total,
+            "ats_passed": bool(fallback_ats >= self.target_score),
+            "qwen_passed": bool(fallback_qwen >= self.target_score),
+            "best_resume": self.fallback_candidate or {},
+            "best_evaluations": self.fallback_evaluations,
             "decision_history": self.history,
         }

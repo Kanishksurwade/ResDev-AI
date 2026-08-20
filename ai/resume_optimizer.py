@@ -27,6 +27,7 @@ Architecture:
 import copy
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -256,6 +257,8 @@ def optimize_resume(
     else:
         raise ValueError(f"Invalid master_resume input: {type(master_resume)}")
 
+    _t_start = time.perf_counter()
+
     # 2. Resolve or Analyze Job Description
     if isinstance(job_description, (str, Path)) and Path(str(job_description)).exists():
         with open(job_description, "r", encoding="utf-8") as f:
@@ -268,17 +271,23 @@ def optimize_resume(
             try:
                 structured_jd = json.loads(trimmed)
             except json.JSONDecodeError:
+                _t0 = time.perf_counter()
                 structured_jd = analyze_job_description(job_description)
+                print(f"[TIMING] JD analysis: {time.perf_counter()-_t0:.1f}s", flush=True)
         else:
+            _t0 = time.perf_counter()
             structured_jd = analyze_job_description(job_description)
+            print(f"[TIMING] JD analysis: {time.perf_counter()-_t0:.1f}s", flush=True)
     else:
         raise ValueError(f"Invalid job_description input: {type(job_description)}")
 
     # 3. Perform Initial JD <-> Master Resume Matching
+    _t0 = time.perf_counter()
     matching_analysis = match_resume_to_jd(
         master_resume=master_resume_data,
         structured_jd=structured_jd,
     )
+    print(f"[TIMING] Resume matching: {time.perf_counter()-_t0:.1f}s", flush=True)
 
     # 4. Initialize Optimization Guard
     guard = OptimizationGuard(target_score=target_score)
@@ -289,9 +298,11 @@ def optimize_resume(
     iterations_history: list[dict[str, Any]] = []
 
     for iteration in range(1, max_iterations + 1):
+        _t_iter_start = time.perf_counter()
         # A. Candidate Generation / Targeted Edit Plan
         if iteration == 1:
             # Baseline candidate generation
+            _t0 = time.perf_counter()
             candidate_resume = generate_tailored_resume(
                 master_resume=master_resume_data,
                 structured_jd=structured_jd,
@@ -299,6 +310,7 @@ def optimize_resume(
                 revision_feedback=None,
                 improvement_actions=None,
             )
+            print(f"[TIMING] Iter {iteration} generation: {time.perf_counter()-_t0:.1f}s", flush=True)
             applied_edits: list[str] = ["Baseline structured resume generated from master evidence"]
             rejected_edits: list[str] = []
         else:
@@ -308,6 +320,7 @@ def optimize_resume(
 
             if unmet_valid_gaps:
                 # Targeted edit plan for verified unmet gaps
+                _t0 = time.perf_counter()
                 edit_plan = generate_targeted_edit_plan(
                     current_resume=active_resume,
                     master_resume=master_resume_data,
@@ -318,8 +331,10 @@ def optimize_resume(
                     edit_plan=edit_plan,
                     master_resume=master_resume_data,
                 )
+                print(f"[TIMING] Iter {iteration} edit plan: {time.perf_counter()-_t0:.1f}s", flush=True)
             else:
                 # If no valid gaps remain, apply targeted semantic revision actions
+                _t0 = time.perf_counter()
                 candidate_resume = generate_tailored_resume(
                     master_resume=master_resume_data,
                     structured_jd=structured_jd,
@@ -327,6 +342,7 @@ def optimize_resume(
                     revision_feedback=current_feedback,
                     improvement_actions=current_improvement_actions,
                 )
+                print(f"[TIMING] Iter {iteration} revision generation: {time.perf_counter()-_t0:.1f}s", flush=True)
                 applied_edits = ["Applied structured semantic revision feedback"]
                 rejected_edits = []
 
@@ -349,12 +365,14 @@ def optimize_resume(
             structured_resume=candidate_resume,
         )
 
-        # E. Qualitative Semantic Review
+        # E. Qualitative Semantic Review (Gemini)
+        _t0 = time.perf_counter()
         qwen_eval = evaluate_resume(
             tailored_resume=candidate_resume,
             structured_jd=structured_jd,
             target_score=target_score,
         )
+        print(f"[TIMING] Iter {iteration} evaluation: {time.perf_counter()-_t0:.1f}s", flush=True)
 
         # F. Optimization Guard: Decision & Regression Protection
         is_accepted, decision_status, decision_reason = guard.evaluate_candidate(
@@ -417,6 +435,13 @@ def optimize_resume(
             multi_ats_result=multi_ats_eval,
         )
 
+        print(
+            f"[TIMING] Iter {iteration} total: {time.perf_counter()-_t_iter_start:.1f}s "
+            f"| ATS {ats_eval.get('ats_score',0)}/100 "
+            f"| Qwen {qwen_eval.get('overall_score',0)}/100",
+            flush=True,
+        )
+
         # Check for Early Exit if all criteria comfortably met
         if (
             guard.best_ats_score >= target_score
@@ -424,6 +449,7 @@ def optimize_resume(
             and guard.best_qwen_score >= target_score
             and evidence_eval.get("passed", False)
         ):
+            print(f"[TIMING] Early exit at iteration {iteration} — all criteria met", flush=True)
             break
 
     # 5. Requirement Matrix Final Audit
@@ -474,6 +500,7 @@ def optimize_resume(
         "decision_history": guard_result["decision_history"],
     }
 
+    print(f"[TIMING] TOTAL pipeline: {time.perf_counter()-_t_start:.1f}s", flush=True)
     return result
 
 

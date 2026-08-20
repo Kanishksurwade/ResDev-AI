@@ -198,3 +198,38 @@ class TestOptimizationGuard:
         assert final["best_iteration"] == 2
         assert final["best_ats_score"] == 95
         assert final["best_resume"]["summary"] == "Best candidate content"
+
+    def test_guard_never_returns_negative_scores_when_all_rejected(self, base_candidate):
+        """When all iterations fail hard gates, guard must return non-negative fallback scores, never -1."""
+        guard = OptimizationGuard(target_score=85)
+
+        # Iteration 1: Rejected on factual violation
+        guard.evaluate_candidate(
+            base_candidate, 1,
+            {"ats_score": 90, "passed": True, "structural_issues": []},
+            {"summary": {"passed": 5, "warned": 1, "failed": 0, "total_platforms": 6}},
+            {"overall_score": 88, "pass_status": True},
+            {"passed": False, "violations": [{"type": "unsupported_tool", "value": "Scale AI"}]},
+        )
+
+        # Iteration 2: Rejected on factual violation
+        guard.evaluate_candidate(
+            base_candidate, 2,
+            {"ats_score": 92, "passed": True, "structural_issues": []},
+            {"summary": {"passed": 6, "warned": 0, "failed": 0, "total_platforms": 6}},
+            {"overall_score": 91, "pass_status": True},
+            {"passed": False, "violations": [{"type": "unsupported_employer", "value": "Acme"}]},
+        )
+
+        final = guard.get_final_result()
+        assert final["best_ats_score"] >= 0
+        assert final["best_ats_score"] != -1
+        assert final["best_qwen_score"] >= 0
+        assert final["best_qwen_score"] != -1
+        assert final["best_combined_score"] >= 0.0
+        assert final["best_combined_score"] != -1.0
+        assert final["best_multi_ats_passed"] >= 0
+        assert final["best_multi_ats_passed"] != -1
+        assert final["best_iteration"] in (1, 2)
+        assert final["best_resume"] is not None
+

@@ -12,10 +12,10 @@ _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from ai.gemini_config import get_gemini_api_key
+from ai.gemini_config import get_gemini_api_key, call_gemini_with_retry, DEFAULT_MODEL, DEFAULT_TIMEOUT
 
-DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "gemini-3.5-flash-lite")
-DEFAULT_TIMEOUT_SECONDS = 600
+DEFAULT_TIMEOUT_SECONDS = DEFAULT_TIMEOUT
+
 
 # Expected schema fields
 EXPECTED_RESUME_SCHEMA: dict[str, type] = {
@@ -141,30 +141,9 @@ def call_gemini(
 ) -> str:
     """
     Send the prompt to Gemini and return the model's text response.
+    Uses call_gemini_with_retry for timeout and retry handling.
     """
-    api_key = get_gemini_api_key()
-
-    try:
-        client = genai.Client(api_key=api_key)
-
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-        )
-
-        text = response.text
-
-        if not text:
-            raise RuntimeError(
-                "Gemini returned an empty response."
-            )
-
-        return text
-
-    except Exception as error:
-        raise RuntimeError(
-            f"Error communicating with Gemini: {error}"
-        ) from error
+    return call_gemini_with_retry(prompt=prompt, model=model)
 
 
 def parse_json_response(raw_text: str) -> dict[str, Any]:

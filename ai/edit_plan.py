@@ -21,8 +21,6 @@ import json
 import os
 import re
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -38,10 +36,10 @@ from ai.evidence_validator import (
     validate_resume_evidence,
     _extract_numbers_and_metrics,
 )
+from ai.gemini_config import call_gemini_with_retry, DEFAULT_MODEL, DEFAULT_TIMEOUT
 
-DEFAULT_MODEL = os.environ.get("RESDEV_MODEL", "qwen3.5:4b")
-DEFAULT_OLLAMA_URL = "http://localhost:11434/api/generate"
-DEFAULT_TIMEOUT_SECONDS = 300
+DEFAULT_TIMEOUT_SECONDS = DEFAULT_TIMEOUT
+
 
 # JSON Schema for Ollama structured output
 EDIT_PLAN_SCHEMA: dict[str, Any] = {
@@ -197,12 +195,13 @@ def generate_targeted_edit_plan(
     master_resume: dict[str, Any],
     unmet_valid_gaps: list[dict[str, Any]],
     model: str = DEFAULT_MODEL,
-    api_url: str = DEFAULT_OLLAMA_URL,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    # Legacy Ollama params silently ignored
+    **_kwargs: object,
 ) -> dict[str, Any]:
     """
-    Call Ollama with structured output schema to produce a targeted edit plan
-    that applies ONLY to valid unmet gaps using authentic evidence.
+    Call Gemini to produce a targeted edit plan for valid unmet gaps.
+    Falls back to a deterministic plan if Gemini is unavailable.
     """
     if not unmet_valid_gaps:
         return {"edits": []}
@@ -238,39 +237,29 @@ STRICT RULES:
 2. Action can be 'rewrite', 'add_skill', or 'replace_bullet'.
 3. Use exact requirement keywords ONLY where candidate background proves them.
 4. NEVER invent tools (e.g. Scale AI, Labelbox), employers, dates, or metrics.
-5. Return a valid JSON object matching the requested schema.
+5. Return ONLY a valid JSON object matching this EXACT structure (no markdown, no prose):
+{{"edits":[{{"id":"EDIT_001","section":"skills","target_id":"skills.technical_skills","action":"add_skill","target_requirements":["REQ_001"],"source_evidence_ids":["master_skills"],"original_text":"","proposed_text":"Keyword here","reason":"Reason here"}}]}}
 """
 
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "think": False,
-        "format": EDIT_PLAN_SCHEMA,
-        "options": {
-            "temperature": 0.0,
-            "num_predict": 2048,
-        },
-    }
-
-    req = urllib.request.Request(
-        api_url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            body = response.read().decode("utf-8")
-            data = json.loads(body)
-            raw_response = data.get("response", "{}")
-            parsed = json.loads(raw_response)
-            if isinstance(parsed, dict) and "edits" in parsed:
-                return parsed
+        raw_response = call_gemini_with_retry(
+            prompt=prompt,
+            model=model,
+            timeout=timeout,
+        )
+        # Strip markdown fences if present
+        cleaned = raw_response.strip()
+        if cleaned.startswith("```"):
+            import re as _re
+            cleaned = _re.sub(r"^```(?:json)?\s*", "", cleaned, flags=_re.IGNORECASE)
+            cleaned = _re.sub(r"\s*```$", "", cleaned).strip()
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict) and "edits" in parsed:
+            return parsed
     except Exception:
         pass
 
-    # Deterministic fallback edit plan if LLM is offline or non-responsive
+    # Deterministic fallback edit plan if Gemini is unavailable or returns bad JSON
     fallback_edits: list[dict[str, Any]] = []
     for g in unmet_valid_gaps[:3]:
         req_text = g["text"]
@@ -300,6 +289,7 @@ STRICT RULES:
             })
 
     return {"edits": fallback_edits}
+
 
 
 def apply_edit_plan(
