@@ -51,6 +51,11 @@ try:
         apply_edit_plan,
     )
     from ai.optimization_guard import OptimizationGuard
+    from ai.final_resume_validator import (
+        build_final_resume,
+        validate_final_resume,
+        save_final_resume,
+    )
 except ImportError:
     from jd_analyzer import analyze_job_description
     from resume_matcher import match_resume_to_jd
@@ -67,6 +72,11 @@ except ImportError:
         apply_edit_plan,
     )
     from optimization_guard import OptimizationGuard
+    from final_resume_validator import (
+        build_final_resume,
+        validate_final_resume,
+        save_final_resume,
+    )
 
 DEFAULT_TARGET_SCORE = 85
 DEFAULT_MAX_ITERATIONS = 5
@@ -445,6 +455,11 @@ def optimize_resume(
 
     guard_result = guard.get_final_result()
 
+    # 6. Final Structured Resume Output Contract & Validation
+    target_role_title = structured_jd.get("job_title", "")
+    final_structured_resume = build_final_resume(final_best_resume, target_role=target_role_title)
+    final_validation_result = validate_final_resume(final_structured_resume)
+
     result = {
         "status": "OPTIMIZATION COMPLETE" if guard_result["ats_passed"] else "MAX_ITERATIONS_REACHED",
         "target_score": target_score,
@@ -463,6 +478,8 @@ def optimize_resume(
             "overall_status", "PASS" if guard_result["best_multi_ats_passed"] == guard_result["best_multi_ats_total"] else "FAIL"
         ),
         "best_resume": final_best_resume,
+        "final_structured_resume": final_structured_resume,
+        "final_resume_validation": final_validation_result,
         "best_ats_evaluation": guard_result.get("best_evaluations", {}).get("ats", {}),
         "best_multi_ats_evaluation": guard_result.get("best_evaluations", {}).get("multi_ats", {}),
         "best_qwen_evaluation": guard_result.get("best_evaluations", {}).get("qwen", {}),
@@ -590,4 +607,26 @@ if __name__ == "__main__":
         for u in optimization_result["unsupported_jd_requirements"]:
             print(f"  [x] {u}", flush=True)
 
+    # 7. Persist and display Final Structured Resume Output
+    final_output_file = save_final_resume(optimization_result["final_structured_resume"])
+    val_summary = optimization_result["final_resume_validation"]
+    final_res = optimization_result["final_structured_resume"]
+
+    print("\n" + "=" * 70, flush=True)
+    print("FINAL STRUCTURED RESUME OUTPUT (LATEX/PDF CONTRACT)", flush=True)
+    print("=" * 70, flush=True)
+    print(f"Validation Status    : {'VALID [PASS]' if val_summary['valid'] else 'INVALID [FAIL]'}", flush=True)
+    print(f"Output Path          : {final_output_file}", flush=True)
+    print(f"JSON File Exists     : {final_output_file.exists()}", flush=True)
+    print(f"Top-Level Sections   : {list(final_res.keys())}", flush=True)
+    print(f"Experience Entries   : {len(final_res.get('experience', []))}", flush=True)
+    n_tech = len(final_res.get("skills", {}).get("technical", []))
+    n_tools = len(final_res.get("skills", {}).get("tools", []))
+    n_soft = len(final_res.get("skills", {}).get("soft", []))
+    print(f"Skills Total         : {n_tech + n_tools + n_soft} (Technical: {n_tech}, Tools: {n_tools}, Soft: {n_soft})", flush=True)
+    print(f"Project Entries      : {len(final_res.get('projects', []))}", flush=True)
+    print(f"Education Entries    : {len(final_res.get('education', []))}", flush=True)
+    print(f"Certifications Count : {len(final_res.get('certifications', []))}", flush=True)
+    print(f"Validation Errors    : {len(val_summary['errors'])}", flush=True)
+    print(f"Validation Warnings  : {len(val_summary['warnings'])}", flush=True)
     print("=" * 70, flush=True)
