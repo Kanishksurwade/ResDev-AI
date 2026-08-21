@@ -25,16 +25,31 @@ DEFAULT_TIMEOUT  = int(os.environ.get("RESDEV_TIMEOUT", "120"))   # seconds per 
 MAX_RETRIES      = 2                                               # extra attempts after first failure
 RETRY_BACKOFF    = (2, 4)                                          # seconds between retries
 
-# Error substrings that indicate a transient server-side failure worth retrying
+# Error substrings that indicate a transient server-side or network failure worth retrying
 _RETRYABLE_SUBSTRINGS = (
     "429",
     "503",
+    "500",
+    "502",
+    "504",
     "quota",
     "rate limit",
     "resource exhausted",
+    "resource_exhausted",
     "internal error",
     "server error",
     "overloaded",
+    "unavailable",
+    "timeout",
+    "timed out",
+    "connection error",
+    "connection reset",
+    "connection refused",
+    "remote disconnected",
+    "temporary",
+    "transport",
+    "socket",
+    "network",
 )
 
 
@@ -77,7 +92,9 @@ def get_gemini_api_key() -> str:
 
 
 def _is_retryable(error: Exception) -> bool:
-    """Return True if the error looks like a transient Gemini server issue."""
+    """Return True if the error looks like a transient Gemini server or network issue."""
+    if isinstance(error, (ConnectionError, TimeoutError, OSError)):
+        return True
     msg = str(error).lower()
     return any(s in msg for s in _RETRYABLE_SUBSTRINGS)
 

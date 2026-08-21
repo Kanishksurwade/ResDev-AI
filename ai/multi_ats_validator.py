@@ -231,6 +231,7 @@ def _check_job_title_match(
     jd_title = str(structured_jd.get("job_title", "")).strip()
     resume_title = str(
         resume.get("personal_info", {}).get("target_title", "")
+        or resume.get("target_role", "")
         or resume.get("tailoring_metadata", {}).get("target_role", "")
     ).strip()
 
@@ -602,8 +603,16 @@ def _evaluate_single_platform(
 
     # --- 11. Resume Length (reuse existing) ---
     length_score, length_issues = evaluate_resume_length(resume)
+    word_count = len(raw_resume_text.split())
+    if length_score >= 85:
+        length_status = "PASS"
+    elif word_count > 0:
+        length_status = "WARN"
+    else:
+        length_status = "FAIL"
+
     checks["resume_length"] = {
-        "status": "PASS" if length_score >= 85 else "FAIL",
+        "status": length_status,
         "score": length_score,
         "issues": length_issues,
     }

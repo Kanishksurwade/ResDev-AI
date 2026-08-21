@@ -210,7 +210,7 @@ class TestOptimizerRollbackProtection:
         res = optimize_resume(
             master_resume=master,
             job_description=jd,
-            target_score=85,
+            target_score=90,
             max_iterations=3,
         )
 

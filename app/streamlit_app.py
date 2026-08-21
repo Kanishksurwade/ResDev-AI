@@ -486,9 +486,10 @@ with col_center:
 
             def _on_progress(iteration: int, max_it: int, data: dict) -> None:
                 pct = int((iteration / max_it) * 80)
-                ats_tag = "✅ PASS" if data["ats_passed"] else "❌ FAIL"
-                qwen_tag = "✅ PASS" if data["qwen_passed"] else "⚠️ NEEDS REVISION"
-                ev_tag = "🔒 VERIFIED" if data["evidence_passed"] else "🚨 VIOLATION"
+                ats_tag = "✅ PASS" if data.get("ats_passed") else "❌ FAIL"
+                semantic_tag = "✅ PASS" if data.get("semantic_passed", data.get("qwen_passed")) else "⚠️ NEEDS REVISION"
+                ev_tag = "🔒 VERIFIED" if data.get("evidence_passed") else "🚨 VIOLATION"
+                sem_score = data.get("semantic_score", data.get("gemini_score", data.get("qwen_score", 0)))
                 _progress_bar.progress(
                     pct,
                     text=f"Iteration {iteration}/{max_it} — ATS {data['ats_score']}/100 {ats_tag}",
@@ -497,13 +498,13 @@ with col_center:
                     f"**Iteration {iteration}/{max_it}**  \n"
                     f"Evidence: {ev_tag} · "
                     f"ATS: {data['ats_score']}/100 {ats_tag} · "
-                    f"Semantic: {data['qwen_score']}/100 {qwen_tag} · "
+                    f"Semantic: {sem_score}/100 {semantic_tag} · "
                     f"Guard: `{data['decision_status']}`"
                 )
                 with _iter_log:
                     st.markdown(
                         f"**Iter {iteration}** — ATS `{data['ats_score']}` | "
-                        f"Qwen `{data['qwen_score']}` | "
+                        f"Semantic `{sem_score}` | "
                         f"Multi-ATS `{data['multi_ats_passed']}/{data['multi_ats_total']}` | "
                         f"Decision: `{data['decision_status']}` — {data['decision_reason']}"
                     )
@@ -518,15 +519,33 @@ with col_center:
                 optimization_result = optimize_resume(
                     master_resume=master_resume_data,
                     job_description=job_description.strip(),
-                    target_score=85,
+                    target_score=86,
                     max_iterations=5,
                     progress_callback=_on_progress,
                 )
             except Exception as _e:
                 _progress_bar.empty()
                 _status_area.empty()
-                st.error("**Optimization pipeline failed.**")
-                st.exception(_e)
+                _err_msg = str(_e)
+                # Classify the error for a clean user-facing message
+                _is_api_error = any(s in _err_msg.lower() for s in [
+                    "429", "503", "quota", "rate limit", "api key", "gemini", "timeout",
+                    "network", "connection", "socket", "transport",
+                ])
+                if _is_api_error:
+                    st.error(
+                        "**AI provider temporarily unavailable.**  \n"
+                        "The Gemini API returned an error. This is usually a rate-limit or "
+                        "temporary outage. Please wait 30–60 seconds and try again.  \n"
+                        f"*Details:* `{_err_msg[:200]}`"
+                    )
+                else:
+                    st.error(
+                        "**Resume optimization failed.**  \n"
+                        "An unexpected error occurred during generation. "
+                        "Please check your Job Description and Master Resume, then try again.  \n"
+                        f"*Details:* `{_err_msg[:300]}`"
+                    )
                 st.stop()
 
             # ── Save final_resume.json ──────────────────────────
@@ -539,8 +558,12 @@ with col_center:
                 save_final_resume(final_structured_resume, _json_out_path)
             except Exception as _e:
                 _progress_bar.empty()
-                st.error(f"Failed to save final_resume.json: {_e}")
-                st.exception(_e)
+                st.error(
+                    "**Failed to save resume JSON.**  \n"
+                    "The optimization completed but the output file could not be written. "
+                    "Please check disk space or file permissions and retry.  \n"
+                    f"*Details:* `{str(_e)[:200]}`"
+                )
                 st.stop()
 
             # ── Render LaTeX + compile PDF ──────────────────────
@@ -557,8 +580,21 @@ with col_center:
                 )
             except Exception as _e:
                 _progress_bar.empty()
-                st.error(f"LaTeX rendering failed: {_e}")
-                st.exception(_e)
+                _err_str = str(_e)
+                if "pdflatex" in _err_str.lower() or "latex" in _err_str.lower():
+                    st.warning(
+                        "**LaTeX rendering failed — PDF not generated.**  \n"
+                        "The resume JSON was saved successfully. "
+                        "pdflatex may not be installed in this environment.  \n"
+                        f"*Details:* `{_err_str[:200]}`"
+                    )
+                else:
+                    st.error(
+                        "**Resume rendering failed.**  \n"
+                        "An error occurred while generating the output files. "
+                        "The optimization may still have completed — check if JSON is available.  \n"
+                        f"*Details:* `{_err_str[:200]}`"
+                    )
                 st.stop()
 
             _progress_bar.progress(100, text="Done!")
@@ -567,7 +603,7 @@ with col_center:
             # ── Results summary ─────────────────────────────────
             opt_status = optimization_result.get("status", "UNKNOWN")
             best_ats = optimization_result.get("best_ats_score", 0)
-            best_qwen = optimization_result.get("best_qwen_score", 0)
+            best_semantic = optimization_result.get("best_semantic_score", optimization_result.get("best_gemini_score", optimization_result.get("best_qwen_score", 0)))
             best_combined = optimization_result.get("best_combined_score", 0)
             best_iter = optimization_result.get("best_iteration", "-")
             total_iters = optimization_result.get("total_iterations", "-")
@@ -584,7 +620,7 @@ with col_center:
                 st.success(
                     f"**Resume generated successfully!**  \n"
                     f"Status: `{opt_status}` · Best iteration: #{best_iter} of {total_iters}  \n"
-                    f"ATS Score: **{best_ats}/100** · Semantic: **{best_qwen}/100** · "
+                    f"ATS Score: **{best_ats}/100** · Semantic: **{best_semantic}/100** · "
                     f"Combined: **{best_combined}/100**  \n"
                     f"Multi-ATS platforms: **{multi_passed}/{multi_total}** passed"
                 )
@@ -592,7 +628,7 @@ with col_center:
                 st.warning(
                     f"**Resume optimised — LaTeX created, but PDF not compiled.**  \n"
                     f"{render_msg}  \n"
-                    f"ATS: {best_ats}/100 · Semantic: {best_qwen}/100 · "
+                    f"ATS: {best_ats}/100 · Semantic: {best_semantic}/100 · "
                     f"Multi-ATS: {multi_passed}/{multi_total}"
                 )
             else:

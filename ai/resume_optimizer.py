@@ -57,7 +57,7 @@ from ai.final_resume_validator import (
     save_final_resume,
 )
 
-DEFAULT_TARGET_SCORE = 85
+DEFAULT_TARGET_SCORE = 86
 DEFAULT_MAX_ITERATIONS = 5
 
 
@@ -391,11 +391,11 @@ def optimize_resume(
             # Roll back to the best verified candidate
             active_resume = copy.deepcopy(guard.best_candidate) if guard.best_candidate else copy.deepcopy(candidate_resume)
 
-        ats_score = ats_eval.get("ats_score", 0)
-        qwen_score = qwen_eval.get("overall_score", 0)
-        combined_score = round(0.5 * ats_score + 0.5 * qwen_score, 1)
+        ats_score = max(0, ats_eval.get("ats_score", 0))
+        qwen_score = max(0, qwen_eval.get("overall_score", 0))
+        combined_score = max(0.0, round(0.5 * ats_score + 0.5 * qwen_score, 1))
         multi_summary = multi_ats_eval.get("summary", {})
-        multi_p = multi_summary.get("passed", 0) + multi_summary.get("warned", 0)
+        multi_p = max(0, multi_summary.get("passed", 0) + multi_summary.get("warned", 0))
         multi_t = multi_summary.get("total_platforms", 6)
 
         iteration_record = {
@@ -403,6 +403,10 @@ def optimize_resume(
             "ats_score": ats_score,
             "ats_passed": ats_eval.get("passed", False),
             "ats_metrics": ats_eval.get("metrics", {}),
+            "gemini_score": qwen_score,
+            "gemini_passed": qwen_eval.get("pass_status", False),
+            "semantic_score": qwen_score,
+            "semantic_passed": qwen_eval.get("pass_status", False),
             "qwen_score": qwen_score,
             "qwen_passed": qwen_eval.get("pass_status", False),
             "combined_score": combined_score,
@@ -438,18 +442,16 @@ def optimize_resume(
         print(
             f"[TIMING] Iter {iteration} total: {time.perf_counter()-_t_iter_start:.1f}s "
             f"| ATS {ats_eval.get('ats_score',0)}/100 "
-            f"| Qwen {qwen_eval.get('overall_score',0)}/100",
+            f"| Semantic {qwen_eval.get('overall_score',0)}/100",
             flush=True,
         )
 
-        # Check for Early Exit if all criteria comfortably met
+        # Check for Early Exit: If ATS >= target_score (86) and evidence passed, PASS and stop immediately
         if (
             guard.best_ats_score >= target_score
-            and guard.best_multi_passed >= 5
-            and guard.best_qwen_score >= target_score
             and evidence_eval.get("passed", False)
         ):
-            print(f"[TIMING] Early exit at iteration {iteration} — all criteria met", flush=True)
+            print(f"[TIMING] Early exit at iteration {iteration} — target ATS score {guard.best_ats_score} >= {target_score} achieved", flush=True)
             break
 
     # 5. Requirement Matrix Final Audit
@@ -464,29 +466,63 @@ def optimize_resume(
     final_structured_resume = build_final_resume(final_best_resume, target_role=target_role_title)
     final_validation_result = validate_final_resume(final_structured_resume)
 
+    # 7. Re-evaluate the final structured resume for consistent, truthful scores.
+    # The intermediate candidate uses a different schema than the saved final_resume.json.
+    # Running ATS/Multi-ATS against the final object ensures displayed scores reflect what
+    # is actually stored and downloaded, preventing a misleading score/document mismatch.
+    final_ats_eval = analyze_ats_compatibility(
+        structured_jd=structured_jd,
+        structured_resume=final_structured_resume,
+        threshold=target_score,
+    )
+    final_multi_ats_eval = validate_multi_ats(
+        structured_jd=structured_jd,
+        structured_resume=final_structured_resume,
+    )
+    final_ats_score = max(0, final_ats_eval.get("ats_score", 0))
+    final_multi_summary = final_multi_ats_eval.get("summary", {})
+    final_multi_passed = max(0, final_multi_summary.get("passed", 0) + final_multi_summary.get("warned", 0))
+    final_multi_total = final_multi_summary.get("total_platforms", 6)
+
+    # Use the best semantic/combined from the guard (Gemini evaluation doesn't change with schema)
+    final_semantic_score = max(0, guard_result.get("best_gemini_score", guard_result.get("best_qwen_score", 0)))
+    final_combined_score = max(0.0, round(0.5 * final_ats_score + 0.5 * final_semantic_score, 1))
+    final_ats_passed = bool(final_ats_score >= target_score)
+
+    print(
+        f"[SCORES] Final document ATS={final_ats_score}/100 | "
+        f"Semantic={final_semantic_score}/100 | Combined={final_combined_score} | "
+        f"Multi-ATS={final_multi_passed}/{final_multi_total}",
+        flush=True,
+    )
+
     result = {
-        "status": "OPTIMIZATION COMPLETE" if guard_result["ats_passed"] else "MAX_ITERATIONS_REACHED",
+        "status": "OPTIMIZATION COMPLETE" if final_ats_passed else "MAX_ITERATIONS_REACHED",
         "target_score": target_score,
         "max_iterations": max_iterations,
         "total_iterations": len(iterations_history),
         "best_iteration": guard_result["best_iteration"],
-        "best_ats_score": guard_result["best_ats_score"],
-        "best_qwen_score": guard_result["best_qwen_score"],
-        "best_combined_score": guard_result["best_combined_score"],
-        "ats_passed": guard_result["ats_passed"],
-        "qwen_passed": guard_result["qwen_passed"],
-        "multi_ats_passed": guard_result["best_multi_ats_passed"],
-        "multi_ats_total": guard_result["best_multi_ats_total"],
-        "multi_ats_failed": guard_result["best_multi_ats_total"] - guard_result["best_multi_ats_passed"],
-        "multi_ats_overall_status": guard_result.get("best_evaluations", {}).get("multi_ats", {}).get(
-            "overall_status", "PASS" if guard_result["best_multi_ats_passed"] == guard_result["best_multi_ats_total"] else "FAIL"
-        ),
+        # Scores reported against the final_structured_resume (canonical output document)
+        "best_ats_score": final_ats_score,
+        "best_gemini_score": final_semantic_score,
+        "best_semantic_score": final_semantic_score,
+        "best_qwen_score": final_semantic_score,
+        "best_combined_score": final_combined_score,
+        "ats_passed": final_ats_passed,
+        "gemini_passed": bool(final_semantic_score >= target_score),
+        "semantic_passed": bool(final_semantic_score >= target_score),
+        "qwen_passed": bool(final_semantic_score >= target_score),
+        "multi_ats_passed": final_multi_passed,
+        "multi_ats_total": final_multi_total,
+        "multi_ats_failed": final_multi_total - final_multi_passed,
+        "multi_ats_overall_status": final_multi_ats_eval.get("overall_status", "FAIL"),
         "best_resume": final_best_resume,
         "final_structured_resume": final_structured_resume,
         "final_resume_validation": final_validation_result,
-        "best_ats_evaluation": guard_result.get("best_evaluations", {}).get("ats", {}),
-        "best_multi_ats_evaluation": guard_result.get("best_evaluations", {}).get("multi_ats", {}),
+        "best_ats_evaluation": final_ats_eval,
+        "best_multi_ats_evaluation": final_multi_ats_eval,
         "best_qwen_evaluation": guard_result.get("best_evaluations", {}).get("qwen", {}),
+        "best_gemini_evaluation": guard_result.get("best_evaluations", {}).get("qwen", {}),
         "best_evidence_evaluation": guard_result.get("best_evaluations", {}).get("evidence", {}),
         "unsupported_jd_requirements": [
             f"Unsupported JD requirement: '{ug['text']}' (No evidence in Master Resume -> Correctly omitted)"

@@ -13,7 +13,7 @@ if str(_project_root) not in sys.path:
 from ai.gemini_config import call_gemini_with_retry, DEFAULT_MODEL, DEFAULT_TIMEOUT
 
 DEFAULT_TIMEOUT_SECONDS = DEFAULT_TIMEOUT
-DEFAULT_TARGET_SCORE = 85
+DEFAULT_TARGET_SCORE = 86
 
 # Expected dimensions in evaluation rubric
 EVALUATION_DIMENSIONS = [
@@ -360,7 +360,10 @@ def evaluate_resume(
     )
 
     # 5. Parse response safely
-    parsed_json = parse_json_response(raw_response)
+    try:
+        parsed_json = parse_json_response(raw_response)
+    except Exception:
+        parsed_json = {}
 
     # 6. Validate and normalize structure against schema
     evaluation_result = validate_and_normalize_evaluation_structure(

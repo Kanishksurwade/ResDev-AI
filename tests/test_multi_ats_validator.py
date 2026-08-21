@@ -42,7 +42,7 @@ from ai.multi_ats_validator import (
     _evaluate_platform_sections,
     _evaluate_single_platform,
 )
-from ai.ats_analyzer import _normalize_text, _extract_all_resume_text
+from ai.ats_analyzer import _normalize_text, _extract_all_resume_text, _is_phrase_present
 
 
 # ---------------------------------------------------------------------------
@@ -652,3 +652,85 @@ class TestEdgeCases:
         # Workday, Taleo, iCIMS, SuccessFactors require skills
         workday_sections = result["platforms"]["workday"]["checks"]["sections"]
         assert "skills" in workday_sections.get("missing_required_sections", [])
+
+
+# ---------------------------------------------------------------------------
+# Regression: Final Resume Schema Support (schema fix tests)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def final_schema_resume_fix():
+    return {
+        'personal_info': {'name': 'Test Candidate', 'email': 'test@example.com', 'phone': '+1-555-000-0000', 'location': 'New York, NY', 'linkedin': 'linkedin.com/in/test', 'github': 'github.com/test'},
+        'target_role': 'Data Annotator',
+        'summary': 'Data annotator with video annotation audio annotation quality assurance annotation tools expertise.',
+        'skills': {
+            'technical': ['Data Annotation', 'Video Annotation', 'Audio Annotation', 'Data Labeling Platforms', 'Annotation Tools'],
+            'tools': ['CVAT', 'Python'],
+            'soft': ['Attention to Detail', 'Remote Work Experience'],
+        },
+        'experience': [{'company': 'Co', 'role': 'Annotator', 'location': 'Remote', 'start_date': 'Jan 2024', 'end_date': 'Present', 'bullets': ['Annotated video and audio data using annotation tools and data labeling platforms.']}],
+        'education': [{'institution': 'U', 'degree': 'BS', 'field': 'CS', 'start_date': '2018', 'end_date': '2022'}],
+        'projects': [], 'certifications': [],
+        'achievements': ['Maintained 99 percent annotation accuracy.'],
+        'additional_sections': [],
+    }
+
+
+class TestFinalSchemaTextExtraction:
+    def test_target_role_top_level_included(self, final_schema_resume_fix):
+        raw = _extract_all_resume_text(final_schema_resume_fix)
+        assert 'data annotator' in _normalize_text(raw)
+
+    def test_skills_technical_tools_soft_extracted(self, final_schema_resume_fix):
+        norm = _normalize_text(_extract_all_resume_text(final_schema_resume_fix))
+        assert 'video annotation' in norm and 'cvat' in norm and 'remote work experience' in norm
+
+    def test_achievements_extracted(self, final_schema_resume_fix):
+        assert 'accuracy' in _normalize_text(_extract_all_resume_text(final_schema_resume_fix))
+
+
+class TestJobTitleTopLevelLookup:
+    def test_top_level_target_role_exact_match(self, final_schema_resume_fix, sample_jd):
+        result = _check_job_title_match(final_schema_resume_fix, sample_jd, requires_exact=True)
+        assert result['status'] == 'PASS'
+
+    def test_personal_info_target_title_backward_compat(self):
+        resume = {'personal_info': {'target_title': 'Data Annotator'}}
+        jd = {'job_title': 'Data Annotator'}
+        assert _check_job_title_match(resume, jd, requires_exact=True)['status'] == 'PASS'
+
+    def test_strict_platforms_job_title_pass(self, final_schema_resume_fix, sample_jd):
+        result = validate_multi_ats(sample_jd, final_schema_resume_fix)
+        for plat in ('workday', 'taleo', 'successfactors'):
+            jt = result['platforms'][plat]['checks']['job_title_match']
+            assert jt['status'] == 'PASS', f'{plat} failed: {jt}'
+
+
+class TestTwoTokenProximityMatching:
+    def test_exact_phrase_still_works(self):
+        assert _is_phrase_present('Video annotation', _normalize_text('video annotation is key'))
+
+    def test_tokens_close_in_later_occurrence(self):
+        text = 'annotation quality matters. ' * 6 + 'video games. ' * 6 + 'video annotation tools used.'
+        assert _is_phrase_present('Video annotation', _normalize_text(text))
+
+
+class TestATSOnFinalSchemaResume:
+    def test_ats_score_at_least_80(self, final_schema_resume_fix, sample_jd):
+        from ai.ats_analyzer import analyze_ats_compatibility
+        result = analyze_ats_compatibility(sample_jd, final_schema_resume_fix)
+        assert result['ats_score'] >= 80, f'ATS {result["ats_score"]}; missing: {result["missing_required_keywords"]}'
+
+    def test_multi_ats_at_least_2_platforms_pass(self, final_schema_resume_fix):
+        """A resume that explicitly lists all required skills should pass >= 2 platforms."""
+        # Use a JD whose keywords/skills directly match the explicit skills in the fixture
+        rich_jd = {
+            'job_title': 'Data Annotator',
+            'required_skills': ['Data annotation', 'Attention to detail', 'Video annotation', 'Audio annotation', 'Annotation tools', 'Data labeling platforms'],
+            'preferred_skills': ['Remote work experience'],
+            'keywords': ['Data Annotator', 'Data annotation', 'Video annotation', 'Audio annotation', 'Annotation tools', 'Quality assurance'],
+        }
+        result = validate_multi_ats(rich_jd, final_schema_resume_fix)
+        s = result['summary']
+        assert s['passed'] + s['warned'] >= 2, f'Only {s["passed"] + s["warned"]}/6 passed'

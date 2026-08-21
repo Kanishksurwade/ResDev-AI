@@ -19,7 +19,7 @@ class OptimizationGuard:
     Gated evaluation and regression protection engine for the resume optimization loop.
     """
 
-    def __init__(self, target_score: int = 85):
+    def __init__(self, target_score: int = 86):
         self.target_score = target_score
         self.best_candidate: dict[str, Any] | None = None
         self.best_iteration: int = 0
@@ -258,15 +258,23 @@ class OptimizationGuard:
     def get_final_result(self) -> dict[str, Any]:
         """Return structured summary of the protected optimization outcome."""
         if self.best_candidate is not None:
+            ats = max(0, self.best_ats_score)
+            semantic = max(0, self.best_qwen_score)
+            comb = max(0.0, self.best_combined_score)
+            multi_p = max(0, self.best_multi_passed)
             return {
                 "best_iteration": self.best_iteration,
-                "best_ats_score": max(0, self.best_ats_score),
-                "best_qwen_score": max(0, self.best_qwen_score),
-                "best_combined_score": max(0.0, self.best_combined_score),
-                "best_multi_ats_passed": max(0, self.best_multi_passed),
+                "best_ats_score": ats,
+                "best_gemini_score": semantic,
+                "best_semantic_score": semantic,
+                "best_qwen_score": semantic,
+                "best_combined_score": comb,
+                "best_multi_ats_passed": multi_p,
                 "best_multi_ats_total": self.best_multi_total,
-                "ats_passed": bool(self.best_ats_score >= self.target_score),
-                "qwen_passed": bool(self.best_qwen_score >= self.target_score),
+                "ats_passed": bool(ats >= self.target_score),
+                "gemini_passed": bool(semantic >= self.target_score),
+                "semantic_passed": bool(semantic >= self.target_score),
+                "qwen_passed": bool(semantic >= self.target_score),
                 "best_resume": self.best_candidate,
                 "best_evaluations": self.best_evaluations,
                 "decision_history": self.history,
@@ -274,21 +282,25 @@ class OptimizationGuard:
 
         # Fallback to the best evaluated candidate across iterations
         fallback_iter = self.fallback_iteration or (self.history[0]["iteration"] if self.history else 1)
-        fallback_ats = self.fallback_ats_score or (self.history[0]["ats_score"] if self.history else 0)
-        fallback_qwen = self.fallback_qwen_score or (self.history[0]["qwen_score"] if self.history else 0)
-        fallback_combined = self.fallback_combined_score or (self.history[0]["combined_score"] if self.history else 0.0)
-        fallback_multi = self.fallback_multi_passed or (self.history[0]["multi_ats_passed"] if self.history else 0)
+        fallback_ats = max(0, self.fallback_ats_score or (self.history[0]["ats_score"] if self.history else 0))
+        fallback_semantic = max(0, self.fallback_qwen_score or (self.history[0]["qwen_score"] if self.history else 0))
+        fallback_combined = max(0.0, self.fallback_combined_score or (self.history[0]["combined_score"] if self.history else 0.0))
+        fallback_multi = max(0, self.fallback_multi_passed or (self.history[0]["multi_ats_passed"] if self.history else 0))
         fallback_multi_total = self.fallback_multi_total or 6
 
         return {
             "best_iteration": fallback_iter,
-            "best_ats_score": max(0, fallback_ats),
-            "best_qwen_score": max(0, fallback_qwen),
-            "best_combined_score": max(0.0, fallback_combined),
-            "best_multi_ats_passed": max(0, fallback_multi),
+            "best_ats_score": fallback_ats,
+            "best_gemini_score": fallback_semantic,
+            "best_semantic_score": fallback_semantic,
+            "best_qwen_score": fallback_semantic,
+            "best_combined_score": fallback_combined,
+            "best_multi_ats_passed": fallback_multi,
             "best_multi_ats_total": fallback_multi_total,
             "ats_passed": bool(fallback_ats >= self.target_score),
-            "qwen_passed": bool(fallback_qwen >= self.target_score),
+            "gemini_passed": bool(fallback_semantic >= self.target_score),
+            "semantic_passed": bool(fallback_semantic >= self.target_score),
+            "qwen_passed": bool(fallback_semantic >= self.target_score),
             "best_resume": self.fallback_candidate or {},
             "best_evaluations": self.fallback_evaluations,
             "decision_history": self.history,

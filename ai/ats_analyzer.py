@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-DEFAULT_THRESHOLD = 85
+DEFAULT_THRESHOLD = 86
 
 # Scoring weights (sum to 1.00)
 WEIGHT_REQUIRED_KEYWORDS = 0.30
@@ -41,6 +41,7 @@ def _normalize_text(text: str) -> str:
 def _extract_all_resume_text(resume: dict[str, Any]) -> str:
     """
     Deterministically flatten all textual content from a structured resume dictionary.
+    Handles both the optimizer's intermediate schema and the final_resume.json output schema.
     """
     text_chunks: list[str] = []
 
@@ -51,23 +52,39 @@ def _extract_all_resume_text(resume: dict[str, Any]) -> str:
             if isinstance(v, str):
                 text_chunks.append(v)
 
-    # 2. Summary
+    # 2. Target role (top-level field in final resume schema, also in tailoring_metadata)
+    target_role = resume.get("target_role", "")
+    if isinstance(target_role, str) and target_role.strip():
+        text_chunks.append(target_role)
+
+    # 3. Summary
     summary = resume.get("summary", "")
     if isinstance(summary, str):
         text_chunks.append(summary)
 
-    # 3. Skills
+    # 4. Skills — handles both intermediate schema (technical_skills/tools_and_technologies/core_competencies)
+    #    and final schema (technical/tools/soft).
     skills = resume.get("skills", {})
     if isinstance(skills, dict):
         for val in skills.values():
             if isinstance(val, list):
-                text_chunks.extend([str(item) for item in val if item])
+                for item in val:
+                    if item:
+                        item_str = str(item)
+                        text_chunks.append(item_str)
+                        # Also extract tokens from parenthetical sub-phrases
+                        # e.g. "Multimodal AI Annotation (Text, Image, Audio, Video)"
+                        # → adds "Text" "Image" "Audio" "Video" individually for phrase matching
+                        paren_match = re.search(r"\(([^)]+)\)", item_str)
+                        if paren_match:
+                            sub_tokens = paren_match.group(1).replace(",", " ")
+                            text_chunks.append(sub_tokens)
             elif isinstance(val, str):
                 text_chunks.append(val)
     elif isinstance(skills, list):
         text_chunks.extend([str(item) for item in skills if item])
 
-    # 4. Experience
+    # 5. Experience
     exp_list = resume.get("experience", [])
     if isinstance(exp_list, list):
         for exp in exp_list:
@@ -78,7 +95,7 @@ def _extract_all_resume_text(resume: dict[str, Any]) -> str:
                 for b in exp.get("bullets", []):
                     text_chunks.append(str(b))
 
-    # 5. Projects
+    # 6. Projects
     proj_list = resume.get("projects", [])
     if isinstance(proj_list, list):
         for proj in proj_list:
@@ -89,7 +106,7 @@ def _extract_all_resume_text(resume: dict[str, Any]) -> str:
                 for b in proj.get("bullets", []):
                     text_chunks.append(str(b))
 
-    # 6. Education
+    # 7. Education
     edu_list = resume.get("education", [])
     if isinstance(edu_list, list):
         for edu in edu_list:
@@ -98,8 +115,9 @@ def _extract_all_resume_text(resume: dict[str, Any]) -> str:
                 text_chunks.append(str(edu.get("institution", "")))
                 text_chunks.append(str(edu.get("location", "")))
                 text_chunks.append(str(edu.get("details", "")))
+                text_chunks.append(str(edu.get("field", "")))
 
-    # 7. Certifications
+    # 8. Certifications
     cert_list = resume.get("certifications", [])
     if isinstance(cert_list, list):
         for cert in cert_list:
@@ -109,7 +127,14 @@ def _extract_all_resume_text(resume: dict[str, Any]) -> str:
             elif isinstance(cert, str):
                 text_chunks.append(cert)
 
-    # 8. Tailoring Metadata
+    # 9. Achievements (final schema)
+    achievements = resume.get("achievements", [])
+    if isinstance(achievements, list):
+        for ach in achievements:
+            if isinstance(ach, str):
+                text_chunks.append(ach)
+
+    # 10. Tailoring Metadata (intermediate schema)
     meta = resume.get("tailoring_metadata", {})
     if isinstance(meta, dict):
         text_chunks.append(str(meta.get("target_role", "")))
@@ -123,6 +148,7 @@ def _is_phrase_present(phrase: str, normalized_resume_text: str) -> bool:
     """
     Check if a target keyword/skill phrase is present in the normalized resume text.
     Supports exact phrase matching and token-subset matching for long phrases.
+    Also handles compound skill entries with parenthetical sub-terms.
     """
     norm_phrase = _normalize_text(phrase)
     if not norm_phrase:
@@ -132,13 +158,26 @@ def _is_phrase_present(phrase: str, normalized_resume_text: str) -> bool:
     if norm_phrase in normalized_resume_text:
         return True
 
-    # 2. Token-level matching for longer multi-word phrases
+    # 2. Two-token phrase: check that both meaningful tokens appear within close proximity
     phrase_tokens = norm_phrase.split()
+    if len(phrase_tokens) == 2:
+        t0, t1 = phrase_tokens
+        if len(t0) > 2 and len(t1) > 2 and t0 in normalized_resume_text and t1 in normalized_resume_text:
+            # Find all positions of each token and check minimum pairwise distance
+            positions_t0 = [i for i in range(len(normalized_resume_text)) if normalized_resume_text.startswith(t0, i)]
+            positions_t1 = [i for i in range(len(normalized_resume_text)) if normalized_resume_text.startswith(t1, i)]
+            min_dist = min(abs(p0 - p1) for p0 in positions_t0 for p1 in positions_t1)
+            if min_dist <= 80:
+                return True
+
+    # 3. Token-level matching for longer multi-word phrases
     if len(phrase_tokens) > 2:
         # Require at least 70% of phrase tokens or key sub-phrases to match
-        matched_tokens = sum(1 for token in phrase_tokens if len(token) > 2 and token in normalized_resume_text)
-        if matched_tokens / len(phrase_tokens) >= 0.70:
-            return True
+        meaningful = [t for t in phrase_tokens if len(t) > 2]
+        if meaningful:
+            matched_tokens = sum(1 for token in meaningful if token in normalized_resume_text)
+            if matched_tokens / len(meaningful) >= 0.70:
+                return True
 
     return False
 
