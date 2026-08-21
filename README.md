@@ -1,544 +1,510 @@
-[# ResDev AI
+# ResDev AI 🚀
 
-> **AI-powered resume automation system for creating job-specific,
-> ATS-friendly resumes**
+> **Evidence-grounded AI resume automation — tailor a real master resume to a specific job, evaluate it, optimize it, and export a professional PDF.**
 
-ResDev AI is a project I built to automate one of the most repetitive
-parts of job applications: customizing the same master resume for
-different jobs.
+🌐 **Live Demo:** https://resdev-ai.streamlit.app  
+💻 **GitHub:** https://github.com/KanishkSurwade/ResDev-AI
 
-Instead of manually reading a job description, finding relevant
-experience, rewriting bullet points, checking keywords, and formatting a
-new PDF, ResDev AI is designed to bring these steps into one workflow.
+---
 
-**Built by Kanishk Surwade.**
+## What is ResDev AI?
 
-------------------------------------------------------------------------
+ResDev AI automates the repetitive work of tailoring a resume for a job application.
 
-## 🎯 Why I Built This
+You provide only:
 
-Applying for different jobs often means changing the resume again and
-again.
+1. **Job Title**
+2. **Job Description**
+3. **Master Resume**
+4. **Resume Template**
 
-The same process is repeated:
+Then ResDev AI:
 
-1.  Read the job description.
-2.  Find important skills and keywords.
-3.  Read the master resume.
-4.  Find relevant experience and projects.
-5.  Rewrite the resume.
-6.  Check ATS-style requirements.
-7.  Fix formatting.
-8.  Generate a PDF.
-
-I wanted to build a system that could automate this process while
-keeping the candidate's real experience as the source of truth.
-
-This project is also my hands-on way of learning software development
-and AI engineering by building a real application.
-
-------------------------------------------------------------------------
-
-## 🚀 What ResDev AI Does
-
-The basic idea is:
-
-``` text
-Job Description + Master Resume
-              ↓
-        Job Analysis
-              ↓
-      Resume Analysis
-              ↓
-    Resume Generation
-              ↓
-      Quality Evaluation
-              ↓
-        Optimization
-              ↓
-       Structured JSON
-              ↓
-           LaTeX
-              ↓
-            PDF
+```text
+Job Description
+       +
+Master Resume
+       ↓
+JD Analysis
+       ↓
+Resume Matching
+       ↓
+Evidence-Grounded Generation
+       ↓
+Quality Evaluation
+       ↓
+ATS Analysis
+       ↓
+Multi-ATS Validation
+       ↓
+Optimization / Regeneration
+       ↓
+Structured JSON
+       ↓
+LaTeX
+       ↓
+PDF
 ```
 
-The system is designed to create a targeted resume without simply
-copying the job description or inventing experience.
+The core rule is simple:
 
-------------------------------------------------------------------------
+> **The Master Resume is the source of truth. The system should optimize the presentation of real experience, not invent experience.**
 
-## 🧩 Main Features
+---
 
-### Job Description Analysis
+## ✨ Features
 
-The system analyzes the job description to identify relevant skills,
-keywords, responsibilities, tools, technologies, experience
-requirements, and other job-specific requirements.
+- Job description analysis
+- Master resume upload and parsing
+- Evidence-grounded resume generation
+- Keyword and skills matching
+- Experience relevance evaluation
+- Grammar and readability checks
+- ATS structure analysis
+- Deterministic ATS scoring
+- Multi-ATS compatibility validation
+- Automatic optimization loop
+- Iteration history
+- Resume length and action-verb checks
+- Unsupported-requirement audit
+- JSON output
+- LaTeX output
+- PDF output
+- Streamlit web interface
+- Local/offline-first architecture
+- Cloud-compatible Gemini deployment
+- Automated regression tests
 
-### Master Resume as Source of Truth
+---
 
-The master resume is stored in structured form and contains candidate
-information, capabilities, professional experience, projects, education,
-achievements, and generation rules.
+## 🧠 Why Evidence-Grounded?
 
-This helps keep generated resumes grounded in the candidate's actual
-background.
+A resume generator should not turn a job description into imaginary experience.
 
-### AI Resume Generation
+### ❌ Not this
 
-The system selects relevant information from the master resume and
-adapts it toward the target job.
+```text
+Job Description
+      ↓
+AI guesses qualifications
+      ↓
+Fake resume
+```
 
-It aims to highlight relevant experience, match useful skills, improve
-bullet points, use stronger action verbs, remove unnecessary
-information, keep the resume ATS-friendly, and avoid unsupported claims.
+### ✅ ResDev AI
 
-### Resume Evaluation
+```text
+Verified Master Resume
+      ↓
+Relevant candidate evidence
+      ↓
+Job-specific presentation
+      ↓
+ATS-aware optimization
+```
 
-The generated resume is evaluated using several criteria:
+The system is designed to avoid inventing companies, responsibilities, certifications, achievements, statistics, skills, or project results that are not supported by the source resume.
 
-  Area                   Purpose
-  ---------------------- ---------------------------------------
-  Keyword Match          Checks relevant job keywords
-  Skills Match           Checks alignment with required skills
-  Experience Relevance   Measures relevance of experience
-  Grammar                Checks writing quality
-  Formatting             Checks resume structure
-  ATS Structure          Checks machine-readable structure
-  Readability            Checks clarity
-  Resume Length          Helps avoid unnecessary content
-  Action Verbs           Checks strength of bullet wording
-  Missing Keywords       Identifies important gaps
+---
 
-The project also contains multi-ATS validation logic.
+## 🔄 Optimization Engine
 
-------------------------------------------------------------------------
+ResDev AI does not have to accept the first generated resume.
 
-## 🔄 Optimization Loop
-
-The project does not have to accept the first generated resume as final.
-
-The workflow can evaluate a generated resume and use the results to
-improve it:
-
-``` text
+```text
 Generate
    ↓
 Evaluate
    ↓
-Passed?
+Improve?
  ┌─┴─┐
-Yes  No
- ↓    ↓
-PDF  Improve
-      ↓
-   Regenerate
-      ↓
-    Evaluate
+No  Yes
+↓     ↓
+Keep  Revision Plan
+       ↓
+    Regenerate
+       ↓
+     Evaluate
+       ↓
+      Keep
 ```
 
-This is intended to make generation more reliable than a single AI
-prompt.
+The optimization process considers ATS score, semantic relevance and Multi-ATS compatibility while protecting the evidence boundary.
 
-------------------------------------------------------------------------
+---
 
-## 📊 Example Evaluation
+## 📊 Evaluation
 
-During development, the system produced results such as:
+The internal evaluator considers:
 
-``` text
-ATS Score:        85/100
-Semantic Score:   82/100
-Combined Score:   83.5/100
-```
+| Area | Purpose |
+|---|---|
+| Keyword Match | Relevant job keywords |
+| Skills Match | Required/preferred skills |
+| Experience Relevance | Job-to-experience alignment |
+| Grammar | Writing quality |
+| Formatting | Resume structure |
+| ATS Structure | Machine-readable organization |
+| Readability | Clarity and scanability |
+| Resume Length | Avoids excessive length |
+| Action Verbs | Stronger bullet wording |
+| Missing Keywords | Identifies useful gaps |
+| Multi-ATS | Compatibility across internal ATS profiles |
 
-These are **internal evaluation metrics**, not official scores from a
-commercial ATS provider.
+### Final verified development result
 
-The application can also report multi-ATS validation results and
-unsupported job-description requirements.
+**ATS:** 94/100  
+**Semantic:** 92/100  
+**Combined:** 93/100  
+**Multi-ATS:** 6/6 passed
 
-------------------------------------------------------------------------
+> These are ResDev AI's internal evaluation metrics. They are **not official scores from commercial ATS vendors** and do not guarantee interviews.
 
-## 🛡️ Evidence-Grounded Generation
-
-One of the most important design principles is avoiding invented
-experience.
-
-A resume generator should not create fake companies, responsibilities,
-skills, certifications, achievements, project results, or statistics.
-
-The intended flow is:
-
-``` text
-Verified Master Resume
-        ↓
-Relevant Information
-        ↓
-Targeted Resume
-```
-
-not:
-
-``` text
-Job Description
-        ↓
-AI guesses experience
-        ↓
-Fake resume
-```
-
-------------------------------------------------------------------------
-
-## 🖥️ User Interface
-
-The application uses Streamlit.
-
-The user provides:
-
--   Job Title
--   Job Description
--   Master Resume
--   Resume Template
-
-Then the application starts the resume-generation pipeline and displays
-the optimization results.
-
-------------------------------------------------------------------------
-
-## 📄 Output
-
-The system can generate:
-
-``` text
-JSON
- ↓
-LaTeX
- ↓
-PDF
-```
-
-LaTeX is used to create the final professional resume PDF.
-
-------------------------------------------------------------------------
+---
 
 ## 🏗️ Architecture
 
-``` text
-                 ResDev AI
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-     Streamlit UI           Backend
-          │                     │
-          └──────────┬──────────┘
-                     │
-              Resume Pipeline
-                     │
-        ┌────────────┼────────────┐
-        ↓            ↓            ↓
-   JD Analysis   Resume Data   Generation
-        │            │            │
-        └────────────┼────────────┘
-                     ↓
-              Quality Evaluation
-                     ↓
-                 Optimization
-                     ↓
-              Structured JSON
-                     ↓
-                   LaTeX
-                     ↓
-                    PDF
+```text
+                         ResDev AI
+                             │
+                       Streamlit UI
+                             │
+              ┌──────────────┴──────────────┐
+              ↓                             ↓
+        JD Analyzer                   Resume Parser
+              │                             │
+              └──────────────┬──────────────┘
+                             ↓
+                     Resume Matching
+                             ↓
+                Evidence-Grounded Generator
+                             ↓
+                     Quality Evaluator
+                             ↓
+                  Deterministic ATS Analyzer
+                             ↓
+                    Multi-ATS Validator
+                             ↓
+                    Optimization Guard
+                             ↓
+                     Structured Resume
+                       /      |      \
+                     JSON    LaTeX    PDF
 ```
 
-------------------------------------------------------------------------
+### Local mode
 
-## 📁 Project Structure
-
-``` text
-ResDev-AI/
-│
-├── ai/                 # AI analysis, generation and optimization
-├── app/                # Streamlit application
-├── backend/            # Backend and pipeline components
-├── data/               # Structured resume/project data
-├── database/           # Database components
-├── docs/               # Documentation
-├── generated/          # Generated output
-├── prompts/            # AI prompts
-├── templates/          # Resume templates
-├── tests/              # Automated tests
-├── utils/              # Utility functions
-│
-├── .gitignore
-├── CURRENT_CONTEXT.md
-├── PROJECT_INSTRUCTIONS.md
-├── README.md
-├── ROADMAP.md
-└── requirements.txt
+```text
+Streamlit
+    ↓
+Local Python pipeline
+    ↓
+Ollama + Qwen
+    ↓
+Local outputs
 ```
 
-------------------------------------------------------------------------
+### Public cloud mode
+
+```text
+Streamlit Cloud
+    ↓
+Python pipeline
+    ↓
+Gemini
+    ↓
+LaTeX/PDF
+    ↓
+Downloads
+```
+
+The core application pipeline remains shared; only the AI runtime changes according to the environment.
+
+---
 
 ## 🛠️ Technology Stack
 
-  Technology   Used For
-  ------------ ----------------------------------
-  Python       Main application and AI pipeline
-  Streamlit    Web interface
-  Ollama       Local AI runtime
-  Qwen         Local language model
-  JSON         Structured resume data
-  SQLite       Local storage/history
-  LaTeX        Resume and PDF generation
-  Git          Version control
-  GitHub       Source code and portfolio
-  pytest       Automated testing
+| Technology | Purpose |
+|---|---|
+| Python | Application and AI pipeline |
+| Streamlit | Web interface |
+| Ollama | Local AI runtime |
+| Qwen | Local language model |
+| Gemini | Public cloud AI runtime |
+| JSON | Structured resume data |
+| SQLite | Local storage/history components |
+| LaTeX | Resume rendering |
+| pytest | Automated testing |
+| Git | Version control |
+| GitHub | Source code and portfolio |
 
-The local version follows a simple, modular and offline-first approach.
+---
 
-------------------------------------------------------------------------
+## 📁 Repository Structure
+
+```text
+ResDev-AI/
+├── ai/                 # Analysis, generation, evaluation, optimization
+├── app/                # Streamlit application
+├── backend/            # Backend/pipeline components
+├── data/               # Structured data
+├── database/           # Database components
+├── docs/               # Engineering documentation
+├── generated/          # Generated artifacts
+├── prompts/            # AI prompts
+├── templates/          # Resume templates
+├── tests/               # Automated tests
+├── utils/              # Utility functions
+├── .gitignore
+├── PROJECT_INSTRUCTIONS.md
+├── CURRENT_CONTEXT.md
+├── ROADMAP.md
+├── requirements.txt
+└── packages.txt
+```
+
+---
 
 ## 💻 Run Locally
 
 ### Requirements
 
-Install Python, Ollama, the Qwen model used by the project, a LaTeX
-distribution such as MiKTeX or TeX Live, and Git.
+- Python
+- Ollama
+- Configured Qwen model
+- MiKTeX or TeX Live
+- Git
 
-Check Python:
+Install Python dependencies:
 
-``` bash
-python --version
-```
-
-Install dependencies:
-
-``` bash
+```bash
 python -m pip install -r requirements.txt
 ```
 
-Install the configured Ollama model:
+Pull the configured local model:
 
-``` bash
+```bash
 ollama pull qwen3.5:4b
 ```
 
-Make sure Ollama is running.
+Run the application:
 
-A LaTeX distribution such as MiKTeX or TeX Live is also required for PDF
-generation.
-
-### Start the application
-
-``` bash
+```bash
 python -m streamlit run app/streamlit_app.py
 ```
 
-Then open:
+Open:
 
-``` text
+```text
 http://localhost:8501
 ```
 
-------------------------------------------------------------------------
+---
 
 ## 🧪 Testing
 
-Run:
+Run the complete test suite:
 
-``` bash
-pytest
+```bash
+python -m pytest -q
 ```
 
-For detailed output:
+Final verified local result during production hardening:
 
-``` bash
-pytest -v
+```text
+136 passed
+1 warning
 ```
 
-------------------------------------------------------------------------
+The warning came from an external Google GenAI dependency and did not fail the test suite.
 
-## 🔐 Privacy
-
-The local version is designed to be offline-first.
-
-When running locally, the application can run on the user's computer,
-Ollama can run the AI model locally, resume files can remain on the
-local machine, and generated files can remain local.
-
-Never commit personal master resumes, passwords, API keys, access
-tokens, private credentials, or sensitive personal information to
-GitHub.
-
-------------------------------------------------------------------------
+---
 
 ## 🌐 Public Demo
 
-A public web version is being prepared as the project showcase.
+Try ResDev AI:
 
-The intended experience is:
+**https://resdev-ai.streamlit.app**
 
-``` text
-Open Website
+The public version demonstrates the cloud-compatible workflow.
+
+> Do not upload confidential or sensitive resumes to a public service unless you are comfortable with the service's current privacy and data-handling practices.
+
+---
+
+## 📚 Engineering Black Book
+
+The complete development journey is documented separately:
+
+**[ResDev AI Engineering Black Book](docs/RESDEV_AI_BLACK_BOOK.md)**
+
+It covers:
+
+- Original problem and vision
+- Offline-first architecture
+- JD analysis
+- Resume matching
+- Generation
+- Evaluation
+- ATS architecture
+- Multi-ATS validation
+- Optimization
+- Local-to-cloud migration
+- Ollama localhost failure
+- Streamlit deployment problems
+- LaTeX/PDF cloud failure
+- Package/import problems
+- Regression failures
+- Debugging and fixes
+- Testing
+- Production verification
+- Final architecture
+- Engineering lessons
+- Future roadmap
+
+A print-ready PDF version is included in the project documentation package.
+
+---
+
+## 🎥 Product Demo
+
+The project includes a recorded end-to-end demonstration showing:
+
+```text
+Landing Page
      ↓
-Enter Job Title
+Job Information
      ↓
-Paste Job Description
+Master Resume Upload
      ↓
-Upload Master Resume
-     ↓
-Choose Template
+Template Selection
      ↓
 Generate Resume
      ↓
-Download PDF
+Optimization Pipeline
+     ↓
+Iteration Log
+     ↓
+ATS / Semantic / Multi-ATS Results
+     ↓
+PDF / LaTeX / JSON
 ```
 
-The local application uses Ollama on the developer's computer. A public
-deployment therefore needs a cloud-compatible AI setup instead of
-depending on that local Ollama process.
+---
 
-**Public Demo: Coming soon**
+## 🔐 Security & Privacy
 
-------------------------------------------------------------------------
+Never commit:
 
-## 📌 Project Status
+- Personal master resumes
+- API keys
+- Passwords
+- Access tokens
+- Private credentials
+- Sensitive personal information
 
-### Completed
+The local architecture is designed to keep the core workflow local when Ollama is used.
 
--   [x] Project foundation
--   [x] Modular architecture
--   [x] Master resume structure
--   [x] Job description analysis
--   [x] Resume matching
--   [x] Resume generation
--   [x] Resume evaluation
--   [x] Resume optimization
--   [x] ATS analysis
--   [x] Multi-ATS validation
--   [x] Structured JSON generation
--   [x] LaTeX generation
--   [x] PDF generation
--   [x] Streamlit interface
--   [x] Automated testing
--   [x] Git/GitHub repository
+Cloud deployment requires cloud AI credentials, which should be stored using deployment secrets/environment variables rather than source code.
 
-### In Progress
+---
 
--   [ ] Public working demo
--   [ ] Cloud-compatible AI workflow
--   [ ] Final portfolio screenshots
--   [ ] Final documentation
+## ⚠️ Limitations
 
-### Future Ideas
+ResDev AI is an automated resume assistant, not a hiring or interview guarantee.
 
--   [ ] More resume templates
--   [ ] Optional Google Drive integration
--   [ ] Optional Google Sheets tracking
--   [ ] More evaluation methods
--   [ ] Additional output formats
+ATS scores are internal estimates. Real applicant-tracking systems differ in their parsing and ranking behavior.
 
-------------------------------------------------------------------------
+Resume quality also depends on the quality and completeness of the master resume.
 
-## ⚠️ Current Limitations
+---
 
-ResDev AI is an automated assistant, not a guarantee of interview
-results.
+## 🧭 Project Evolution
 
-The ATS scores are estimates produced by the project's own evaluation
-logic. They are not official scores from every ATS platform.
+The Git history records the project growing from a foundation into a production-oriented system:
 
-Different companies use different recruiting systems and screening
-processes.
-
-The quality of the final resume also depends on the quality and
-completeness of the master resume.
-
-> A high internal score does not guarantee an interview or job offer.
-
-------------------------------------------------------------------------
-
-## 📚 What I Learned
-
-This project was built as a practical learning project.
-
-While building it, I worked with Python development, modular
-architecture, JSON data structures, prompt engineering, local AI models,
-resume generation, evaluation pipelines, ATS-style validation, LaTeX,
-PDF rendering, Streamlit, automated testing, Git, GitHub, and debugging
-a real application.
-
-The goal was to learn by building instead of separating learning from
-development.
-
-------------------------------------------------------------------------
-
-## 🎯 Project Vision
-
-The final vision is a simple one-click workflow:
-
-``` text
-Job Title
-    +
-Job Description
-    +
+```text
+Project Foundation
+      ↓
 Master Resume
-    ↓
-  ResDev AI
-    ↓
-Analyze
-    ↓
-Generate
-    ↓
-Evaluate
-    ↓
-Improve if required
-    ↓
-Generate LaTeX
-    ↓
-Generate PDF
-    ↓
-Resume Ready
+      ↓
+JD Analysis
+      ↓
+Resume Matching
+      ↓
+Resume Generation
+      ↓
+Quality Evaluation
+      ↓
+Automatic Optimization
+      ↓
+Deterministic ATS
+      ↓
+Multi-ATS
+      ↓
+Evidence-Grounded Optimization
+      ↓
+Structured Validation
+      ↓
+Streamlit + PDF
+      ↓
+Ollama → Gemini
+      ↓
+Cloud Hardening
+      ↓
+Production Tests
+      ↓
+Public Demo
 ```
 
-The aim is to make resume customization faster while keeping the content
-grounded in the candidate's real experience.
+---
 
-------------------------------------------------------------------------
+## 🎯 Vision
+
+The long-term goal is a simple one-click resume workflow:
+
+```text
+Job Title
+   +
+Job Description
+   +
+Master Resume
+   +
+Template
+      ↓
+   ResDev AI
+      ↓
+ Resume Ready
+```
+
+---
 
 ## 👨‍💻 Author
 
 ### Kanishk Surwade
 
-**Creator and developer of ResDev AI**
+Built as a hands-on project to learn and demonstrate:
 
-This project was built to learn and demonstrate practical skills in
-Software Development, AI Engineering, Automation, Python, Prompt
-Engineering, Resume and ATS Optimization, Streamlit, LaTeX, Testing,
-Git, and GitHub.
+**Software Development · AI Engineering · Automation · Python · LLM Integration · Prompt Engineering · ATS Optimization · Streamlit · LaTeX · Testing · Git · GitHub · Cloud Deployment**
 
-------------------------------------------------------------------------
+---
 
-## ⭐ Feedback
+## ⭐ Support
 
-If you find the project interesting, you can:
+If you find ResDev AI useful or interesting:
 
--   ⭐ Star the repository
--   Explore the source code
--   Try the public demo when available
--   Open an issue with suggestions
--   Share feedback
+- ⭐ Star the repository
+- Try the public demo
+- Explore the source code
+- Open an issue
+- Share feedback
 
-------------------------------------------------------------------------
+---
 
-## 📜 License
+## 📄 License
 
-License details will be added before the final public release.
+License details can be added before a formal open-source release.
 
-------------------------------------------------------------------------
+---
 
-**ResDev AI --- Built by Kanishk Surwade**
-](https://resdev-ai.streamlit.app/)
+**ResDev AI — Built by Kanishk Surwade**
