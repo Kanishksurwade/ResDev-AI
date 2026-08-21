@@ -581,21 +581,13 @@ with col_center:
             except Exception as _e:
                 _progress_bar.empty()
                 _err_str = str(_e)
-                if "pdflatex" in _err_str.lower() or "latex" in _err_str.lower():
-                    st.warning(
-                        "**LaTeX rendering failed — PDF not generated.**  \n"
-                        "The resume JSON was saved successfully. "
-                        "pdflatex may not be installed in this environment.  \n"
-                        f"*Details:* `{_err_str[:200]}`"
-                    )
-                else:
-                    st.error(
-                        "**Resume rendering failed.**  \n"
-                        "An error occurred while generating the output files. "
-                        "The optimization may still have completed — check if JSON is available.  \n"
-                        f"*Details:* `{_err_str[:200]}`"
-                    )
-                st.stop()
+                render_result = {
+                    "status": "ERROR",
+                    "tex_path": str(_tex_out_path) if _tex_out_path.is_file() else "",
+                    "pdf_path": None,
+                    "pdflatex_available": False,
+                    "message": f"Rendering error: {_err_str}",
+                }
 
             _progress_bar.progress(100, text="Done!")
             _status_area.empty()
@@ -626,7 +618,7 @@ with col_center:
                 )
             elif render_status == "TEX_ONLY":
                 st.warning(
-                    f"**Resume optimised — LaTeX created, but PDF not compiled.**  \n"
+                    f"**Resume optimised — LaTeX source created, but PDF compilation was skipped or unavailable.**  \n"
                     f"{render_msg}  \n"
                     f"ATS: {best_ats}/100 · Semantic: {best_semantic}/100 · "
                     f"Multi-ATS: {multi_passed}/{multi_total}"
@@ -644,32 +636,60 @@ with col_center:
 
             # ── Download buttons ────────────────────────────────
             st.markdown("#### 📥 Downloads")
-            _dl_cols = st.columns(2)
+            _dl_cols = st.columns(3)
 
+            # 1. PDF Download
             with _dl_cols[0]:
-                _pdf_path = Path(render_result.get("pdf_path") or "")
-                if _pdf_path.exists():
-                    with open(_pdf_path, "rb") as _pdf_file:
-                        st.download_button(
-                            label="⬇️ Download PDF",
-                            data=_pdf_file.read(),
-                            file_name="final_resume.pdf",
-                            mime="application/pdf",
-                            key="download_pdf",
-                        )
+                _raw_pdf = render_result.get("pdf_path")
+                _pdf_path = Path(_raw_pdf) if _raw_pdf else None
+                if _pdf_path and _pdf_path.is_file():
+                    try:
+                        with open(_pdf_path, "rb") as _pdf_file:
+                            st.download_button(
+                                label="⬇️ Download PDF",
+                                data=_pdf_file.read(),
+                                file_name="final_resume.pdf",
+                                mime="application/pdf",
+                                key="download_pdf",
+                            )
+                    except Exception as _pdf_read_err:
+                        st.caption(f"Could not read PDF: {_pdf_read_err}")
                 else:
-                    st.caption("PDF not available (pdflatex not found or compilation failed).")
+                    st.caption("📄 PDF not available (pdflatex not found or compilation failed).")
 
+            # 2. LaTeX Source Download (.tex)
             with _dl_cols[1]:
-                if _json_out_path.exists():
-                    with open(_json_out_path, "r", encoding="utf-8") as _jf:
-                        st.download_button(
-                            label="⬇️ Download JSON",
-                            data=_jf.read(),
-                            file_name="final_resume.json",
-                            mime="application/json",
-                            key="download_json",
-                        )
+                if _tex_out_path.is_file():
+                    try:
+                        with open(_tex_out_path, "r", encoding="utf-8") as _tf:
+                            st.download_button(
+                                label="⬇️ Download LaTeX (.tex)",
+                                data=_tf.read(),
+                                file_name="final_resume.tex",
+                                mime="text/plain",
+                                key="download_tex",
+                            )
+                    except Exception as _tex_read_err:
+                        st.caption(f"LaTeX source unreadable: {_tex_read_err}")
+                else:
+                    st.caption("LaTeX source unavailable.")
+
+            # 3. JSON Resume Download (.json)
+            with _dl_cols[2]:
+                if _json_out_path.is_file():
+                    try:
+                        with open(_json_out_path, "r", encoding="utf-8") as _jf:
+                            st.download_button(
+                                label="⬇️ Download JSON",
+                                data=_jf.read(),
+                                file_name="final_resume.json",
+                                mime="application/json",
+                                key="download_json",
+                            )
+                    except Exception as _json_read_err:
+                        st.caption(f"JSON resume unreadable: {_json_read_err}")
+                else:
+                    st.caption("JSON resume unavailable.")
 
             # Honest audit
             unsupported = optimization_result.get("unsupported_jd_requirements", [])
